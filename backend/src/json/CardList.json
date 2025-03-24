@@ -1,0 +1,722 @@
+{
+    "1": {
+      "lightSide": {
+        "id": 1,
+        "color": "red",
+        "value": "0"
+      },
+      "darkSide": {
+        "id": 2,
+        "color": "purple",
+        "value": "0"
+      }
+    },
+    "3": {
+      "lightSide": {
+        "id": 3,
+        "color": "red",
+        "value": "1"
+      },
+      "darkSide": {
+        "id": 4,
+        "color": "purple",
+        "value": "1"
+      }
+    },
+    "5": {
+      "lightSide": {
+        "id": 5,
+        "color": "red",
+        "value": "2"
+      },
+      "darkSide": {
+        "id": 6,
+        "color": "purple",
+        "value": "2"
+      }
+    },
+    "7": {
+      "lightSide": {
+        "id": 7,
+        "color": "red",
+        "value": "3"
+      },
+      "darkSide": {
+        "id": 8,
+        "color": "purple",
+        "value": "3"
+      }
+    },
+    "9": {
+      "lightSide": {
+        "id": 9,
+        "color": "red",
+        "value": "4"
+      },
+      "darkSide": {
+        "id": 10,
+        "color": "purple",
+        "value": "4"
+      }
+    },
+    "11": {
+      "lightSide": {
+        "id": 11,
+        "color": "red",
+        "value": "5"
+      },
+      "darkSide": {
+        "id": 12,
+        "color": "purple",
+        "value": "5"
+      }
+    },
+    "13": {
+      "lightSide": {
+        "id": 13,
+        "color": "red",
+        "value": "6"
+      },
+      "darkSide": {
+        "id": 14,
+        "color": "purple",
+        "value": "6"
+      }
+    },
+    "15": {
+      "lightSide": {
+        "id": 15,
+        "color": "red",
+        "value": "7"
+      },
+      "darkSide": {
+        "id": 16,
+        "color": "purple",
+        "value": "7"
+      }
+    },
+    "17": {
+      "lightSide": {
+        "id": 17,
+        "color": "red",
+        "value": "8"
+      },
+      "darkSide": {
+        "id": 18,
+        "color": "purple",
+        "value": "8"
+      }
+    },
+    "19": {
+      "lightSide": {
+        "id": 19,
+        "color": "red",
+        "value": "9"
+      },
+      "darkSide": {
+        "id": 20,
+        "color": "purple",
+        "value": "9"
+      }
+    },
+    "21": {
+      "lightSide": {
+        "id": 21,
+        "color": "blue",
+        "value": "0"
+      },
+      "darkSide": {
+        "id": 2,
+        "color": "purple",
+        "value": "0"
+      }
+    },
+    "22": {
+      "lightSide": {
+        "id": 22,
+        "color": "blue",
+        "value": "1"
+      },
+      "darkSide": {
+        "id": 4,
+        "color": "purple",
+        "value": "1"
+      }
+    },
+    "23": {
+      "lightSide": {
+        "id": 23,
+        "color": "blue",
+        "value": "2"
+      },
+      "darkSide": {
+        "id": 6,
+        "color": "purple",
+        "value": "2"
+      }
+    },
+    "24": {
+      "lightSide": {
+        "id": 24,
+        "color": "blue",
+        "value": "3"
+      },
+      "darkSide": {
+        "id": 8,
+        "color": "purple",
+        "value": "3"
+      }
+    },
+    "25": {
+      "lightSide": {
+        "id": 25,
+        "color": "blue",
+        "value": "4"
+      },
+      "darkSide": {
+        "id": 10,
+        "color": "purple",
+        "value": "4"
+      }
+    },
+    "26": {
+      "lightSide": {
+        "id": 26,
+        "color": "blue",
+        "value": "5"
+      },
+      "darkSide": {
+        "id": 12,
+        "color": "purple",
+        "value": "5"
+      }
+    },
+    "27": {
+      "lightSide": {
+        "id": 27,
+        "color": "blue",
+        "value": "6"
+      },
+      "darkSide": {
+        "id": 14,
+        "color": "purple",
+        "value": "6"
+      }
+    },
+    "28": {
+      "lightSide": {
+        "id": 28,
+        "color": "blue",
+        "value": "7"
+      },
+      "darkSide": {
+        "id": 16,
+        "color": "purple",
+        "value": "7"
+      }
+    },
+    "29": {
+      "lightSide": {
+        "id": 29,
+        "color": "blue",
+        "value": "8"
+      },
+      "darkSide": {
+        "id": 18,
+        "color": "purple",
+        "value": "8"
+      }
+    },
+    "30": {
+      "lightSide": {
+        "id": 30,
+        "color": "blue",
+        "value": "9"
+      },
+      "darkSide": {
+        "id": 20,
+        "color": "purple",
+        "value": "9"
+      }
+    },
+    "31": {
+      "lightSide": {
+        "id": 31,
+        "color": "green",
+        "value": "0"
+      },
+      "darkSide": {
+        "id": 2,
+        "color": "purple",
+        "value": "0"
+      }
+    },
+    "32": {
+      "lightSide": {
+        "id": 32,
+        "color": "green",
+        "value": "1"
+      },
+      "darkSide": {
+        "id": 4,
+        "color": "purple",
+        "value": "1"
+      }
+    },
+    "33": {
+      "lightSide": {
+        "id": 33,
+        "color": "green",
+        "value": "2"
+      },
+      "darkSide": {
+        "id": 6,
+        "color": "purple",
+        "value": "2"
+      }
+    },
+    "34": {
+      "lightSide": {
+        "id": 34,
+        "color": "green",
+        "value": "3"
+      },
+      "darkSide": {
+        "id": 8,
+        "color": "purple",
+        "value": "3"
+      }
+    },
+    "35": {
+      "lightSide": {
+        "id": 35,
+        "color": "green",
+        "value": "4"
+      },
+      "darkSide": {
+        "id": 10,
+        "color": "purple",
+        "value": "4"
+      }
+    },
+    "36": {
+      "lightSide": {
+        "id": 36,
+        "color": "green",
+        "value": "5"
+      },
+      "darkSide": {
+        "id": 12,
+        "color": "purple",
+        "value": "5"
+      }
+    },
+    "37": {
+      "lightSide": {
+        "id": 37,
+        "color": "green",
+        "value": "6"
+      },
+      "darkSide": {
+        "id": 14,
+        "color": "purple",
+        "value": "6"
+      }
+    },
+    "38": {
+      "lightSide": {
+        "id": 38,
+        "color": "green",
+        "value": "7"
+      },
+      "darkSide": {
+        "id": 16,
+        "color": "purple",
+        "value": "7"
+      }
+    },
+    "39": {
+      "lightSide": {
+        "id": 39,
+        "color": "green",
+        "value": "8"
+      },
+      "darkSide": {
+        "id": 18,
+        "color": "purple",
+        "value": "8"
+      }
+    },
+    "40": {
+      "lightSide": {
+        "id": 40,
+        "color": "green",
+        "value": "9"
+      },
+      "darkSide": {
+        "id": 20,
+        "color": "purple",
+        "value": "9"
+      }
+    },
+    "41": {
+      "lightSide": {
+        "id": 41,
+        "color": "yellow",
+        "value": "0"
+      },
+      "darkSide": {
+        "id": 2,
+        "color": "purple",
+        "value": "0"
+      }
+    },
+    "42": {
+      "lightSide": {
+        "id": 42,
+        "color": "yellow",
+        "value": "1"
+      },
+      "darkSide": {
+        "id": 4,
+        "color": "purple",
+        "value": "1"
+      }
+    },
+    "43": {
+      "lightSide": {
+        "id": 43,
+        "color": "yellow",
+        "value": "2"
+      },
+      "darkSide": {
+        "id": 6,
+        "color": "purple",
+        "value": "2"
+      }
+    },
+    "44": {
+      "lightSide": {
+        "id": 44,
+        "color": "yellow",
+        "value": "3"
+      },
+      "darkSide": {
+        "id": 8,
+        "color": "purple",
+        "value": "3"
+      }
+    },
+    "45": {
+      "lightSide": {
+        "id": 45,
+        "color": "yellow",
+        "value": "4"
+      },
+      "darkSide": {
+        "id": 10,
+        "color": "purple",
+        "value": "4"
+      }
+    },
+    "46": {
+      "lightSide": {
+        "id": 46,
+        "color": "yellow",
+        "value": "5"
+      },
+      "darkSide": {
+        "id": 12,
+        "color": "purple",
+        "value": "5"
+      }
+    },
+    "47": {
+      "lightSide": {
+        "id": 47,
+        "color": "yellow",
+        "value": "6"
+      },
+      "darkSide": {
+        "id": 14,
+        "color": "purple",
+        "value": "6"
+      }
+    },
+    "48": {
+      "lightSide": {
+        "id": 48,
+        "color": "yellow",
+        "value": "7"
+      },
+      "darkSide": {
+        "id": 16,
+        "color": "purple",
+        "value": "7"
+      }
+    },
+    "49": {
+      "lightSide": {
+        "id": 49,
+        "color": "yellow",
+        "value": "8"
+      },
+      "darkSide": {
+        "id": 18,
+        "color": "purple",
+        "value": "8"
+      }
+    },
+    "50": {
+      "lightSide": {
+        "id": 50,
+        "color": "yellow",
+        "value": "9"
+      },
+      "darkSide": {
+        "id": 20,
+        "color": "purple",
+        "value": "9"
+      }
+    },
+    "51": {
+      "lightSide": {
+        "id": 51,
+        "color": "black",
+        "value": "Entanglement"
+      },
+      "darkSide": {
+        "id": 51,
+        "color": "black",
+        "value": "Entanglement"
+      }
+    },
+    "52": {
+      "lightSide": {
+        "id": 52,
+        "color": "black",
+        "value": "Measurement"
+      },
+      "darkSide": {
+        "id": 52,
+        "color": "black",
+        "value": "Measurement"
+      }
+    },
+    "53": {
+      "lightSide": {
+        "id": 53,
+        "color": "black",
+        "value": "Colour Superposition"
+      },
+      "darkSide": {
+        "id": 53,
+        "color": "black",
+        "value": "Colour Superposition"
+      }
+    },
+    "54": {
+      "lightSide": {
+        "id": 54,
+        "color": "black",
+        "value": "Pauli X"
+      },
+      "darkSide": {
+        "id": 54,
+        "color": "black",
+        "value": "Pauli X"
+      }
+    },
+    "55": {
+      "lightSide": {
+        "id": 55,
+        "color": "black",
+        "value": "Pauli Z"
+      },
+      "darkSide": {
+        "id": 55,
+        "color": "black",
+        "value": "Pauli Z"
+      }
+    },
+    "56": {
+      "lightSide": {
+        "id": 57,
+        "color": "black",
+        "value": "0"
+      },
+      "darkSide": {
+        "id": 56,
+        "color": "teal",
+        "value": "0"
+      }
+    },
+    "58": {
+      "lightSide": {
+        "id": 59,
+        "color": "black",
+        "value": "1"
+      },
+      "darkSide": {
+        "id": 58,
+        "color": "teal",
+        "value": "1"
+      }
+    },
+    "60": {
+      "lightSide": {
+        "id": 61,
+        "color": "black",
+        "value": "2"
+      },
+      "darkSide": {
+        "id": 60,
+        "color": "teal",
+        "value": "2"
+      }
+    },
+    "62": {
+      "lightSide": {
+        "id": 63,
+        "color": "black",
+        "value": "3"
+      },
+      "darkSide": {
+        "id": 62,
+        "color": "teal",
+        "value": "3"
+      }
+    },
+    "64": {
+      "lightSide": {
+        "id": 65,
+        "color": "black",
+        "value": "4"
+      },
+      "darkSide": {
+        "id": 64,
+        "color": "teal",
+        "value": "4"
+      }
+    },
+    "66": {
+      "lightSide": {
+        "id": 67,
+        "color": "black",
+        "value": "5"
+      },
+      "darkSide": {
+        "id": 66,
+        "color": "teal",
+        "value": "5"
+      }
+    },
+    "68": {
+      "lightSide": {
+        "id": 69,
+        "color": "black",
+        "value": "6"
+      },
+      "darkSide": {
+        "id": 68,
+        "color": "teal",
+        "value": "6"
+      }
+    },
+    "70": {
+      "lightSide": {
+        "id": 71,
+        "color": "black",
+        "value": "7"
+      },
+      "darkSide": {
+        "id": 70,
+        "color": "teal",
+        "value": "7"
+      }
+    },
+    "72": {
+      "lightSide": {
+        "id": 73,
+        "color": "black",
+        "value": "8"
+      },
+      "darkSide": {
+        "id": 72,
+        "color": "teal",
+        "value": "8"
+      }
+    },
+    "74": {
+      "lightSide": {
+        "id": 75,
+        "color": "black",
+        "value": "9"
+      },
+      "darkSide": {
+        "id": 74,
+        "color": "teal",
+        "value": "9"
+      }
+    },
+    "76": {
+      "lightSide": {
+        "id": 77,
+        "color": "black",
+        "value": "Superposition"
+      },
+      "darkSide": {
+        "id": 76,
+        "color": "black",
+        "value": "Superposition"
+      }
+    },
+    "78": {
+      "lightSide": {
+        "id": 52,
+        "color": "black",
+        "value": "Measurement"
+      },
+      "darkSide": {
+        "id": 78,
+        "color": "black",
+        "value": "Measurement"
+      }
+    },
+    "79": {
+      "lightSide": {
+        "id": 53,
+        "color": "black",
+        "value": "Colour Superposition"
+      },
+      "darkSide": {
+        "id": 79,
+        "color": "black",
+        "value": "Colour Superposition"
+      }
+    },
+    "80": {
+      "lightSide": {
+        "id": 81,
+        "color": "black",
+        "value": "Pauli Y"
+      },
+      "darkSide": {
+        "id": 80,
+        "color": "black",
+        "value": "Pauli Y"
+      }
+    },
+    "82": {
+      "lightSide": {
+        "id": 83,
+        "color": "black",
+        "value": "Teleportation"
+      },
+      "darkSide": {
+        "id": 82,
+        "color": "black",
+        "value": "Teleportation"
+      }
+    }
+  }

@@ -7,7 +7,7 @@ const GameRoom: React.FC = () => {
   const [inputRoomId, setInputRoomId] = useState<string>('');
   const [ready, setReady] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [cardDeck, setCardDeck] = useState<any[]>([]); // Store the deck
+  const [cardDeck, setCardDeck] = useState<any[]>([]);
   const [discardCardDeck, setDiscardCardDeck] = useState<any[]>([]);
   const [opponentCardDeck, setOpponentCardDeck] = useState<any[]>([]);
 
@@ -25,19 +25,27 @@ const GameRoom: React.FC = () => {
   };
 
   const handleCardPlay = (card: any) => {
-    WebSocketClient.send(
-      JSON.stringify({ type: 'PLAY_CARD', roomId, playerId, card })
-    );
-  
+    WebSocketClient.send(JSON.stringify({ type: 'PLAY_CARD', roomId, playerId, card }));
+
     setCardDeck((prevHand) => prevHand.filter(c => c !== card));
-  
     setDiscardCardDeck((prevDiscard) => [...prevDiscard, card]);
   };
-  
+
+  // 🔹 Function to draw a card
+  const handleDrawCard = () => {
+    if (!roomId || !playerId) return;
+
+    WebSocketClient.send(JSON.stringify({
+      type: 'DRAW_CARD',
+      roomId,
+      playerId
+    }));
+  };
 
   useEffect(() => {
     WebSocketClient.onmessage = (message: MessageEvent) => {
       const data = JSON.parse(message.data);
+
       switch (data.type) {
         case 'ROOM_CREATED':
           setRoomId(data.roomId);
@@ -47,21 +55,29 @@ const GameRoom: React.FC = () => {
           setRoomId(data.roomId);
           setPlayerId(data.playerId);
           break;
-        case 'START_GAME': {
+        case 'START_GAME':
           setGameStarted(true);
-          console.log("Received deck:", data.deck);
-          const formattedDeck = Object.values(data.deck || {});
-          setCardDeck(formattedDeck);
+          setCardDeck(Object.values(data.deck || {}));
           break;
-        }
-        case 'YOUR_HAND': {
-          console.log("Received hand:", data.hand);
-          console.log("Received opponent's hand:", data.opponentHand);
-          const formattedHand = Object.values(data.hand || {});
-          setCardDeck(formattedHand);
+        case 'YOUR_HAND':
+          setCardDeck(Object.values(data.hand || {}));
           setOpponentCardDeck(Object.values(data.opponentHand || {}));
           break;
-        }
+        case 'OPPONENT_PLAYED_CARD':
+          console.log("Opponent Played Card:", data.card);
+          console.log("Opponent's Hand Before:", opponentCardDeck);
+
+          setOpponentCardDeck(prev => prev.filter(c => c.backFace.cardId !== data.card.backFace.cardId));
+          console.log("Opponent's Hand After:", opponentCardDeck);
+          setDiscardCardDeck(prev => [...prev, data.card]);
+          break;
+
+        case 'CARD_DRAWN':  // 🔹 Handling the drawn card
+          setCardDeck(prevDeck => [...prevDeck, data.card]);
+          break;
+        case 'OPPONENT_DREW_CARD':
+          setOpponentCardDeck(prevDeck => [...prevDeck, { backFace: data.card.backFace }]); // Add backface card to opponent's hand
+          break;
         case 'ERROR':
           alert(data.message);
           break;
@@ -69,7 +85,7 @@ const GameRoom: React.FC = () => {
           console.warn("Unknown message type received:", data);
       }
     };
-  }, [roomId, playerId]);
+  }, [roomId, playerId, opponentCardDeck]);
 
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -82,30 +98,48 @@ const GameRoom: React.FC = () => {
           {gameStarted ? (
             <div>
               <h2>Game Started!</h2>
-              <p>Your cards:</p>
+
+              <h3>Opponent's Hand:</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                {cardDeck.length > 0 ? (
-                  cardDeck.map((card, index) => (
-                    <div 
-                      key={index} 
-                      style={{ border: '1px solid black', padding: '10px', cursor: 'pointer' }} 
-                      onClick={() => handleCardPlay(card)}
-                    >
-                      <p><strong>Card {index + 1}</strong></p>
-                      {card.frontFace && card.backFace ? (
-                        <>
-                          <p>Front: {card.frontFace.cardColor} - {card.frontFace.cardValue} ({card.frontFace.cardSide})</p>
-                          <p>Back: {card.backFace.cardColor} - {card.backFace.cardValue} ({card.backFace.cardSide})</p>
-                        </>
-                      ) : (
-                        <p>Invalid card data</p>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p>No cards received</p>
-                )}
+                {opponentCardDeck.map((card, index) => (
+                  <div key={index} style={{ border: '1px solid black', padding: '10px' }}>
+                    <p><strong>Card {index + 1}</strong></p>
+                    {card.backFace ? (
+                      <p>{card.backFace.cardColor} - {card.backFace.cardValue}</p>
+                    ) : (
+                      <p>Unknown</p>
+                    )}
+                  </div>
+                ))}
               </div>
+
+
+              <h3>Your Cards:</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                {cardDeck.map((card, index) => (
+                  <div
+                    key={index}
+                    style={{ border: '1px solid black', padding: '10px', cursor: 'pointer' }}
+                    onClick={() => handleCardPlay(card)}
+                  >
+                    <p><strong>Card {index + 1}</strong></p>
+                    <p>{card.frontFace.cardColor} - {card.frontFace.cardValue}</p>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Discard Pile:</h3>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                {discardCardDeck.map((card, index) => (
+                  <div key={index} style={{ border: '1px solid red', padding: '10px' }}>
+                    <p><strong>Discard {index + 1}</strong></p>
+                    <p>{card.frontFace.cardColor} - {card.frontFace.cardValue}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={handleDrawCard}>Draw Card</button>
+
             </div>
           ) : (
             <div>

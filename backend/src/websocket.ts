@@ -68,6 +68,9 @@ const handleMessage = (ws: WebSocket, message: any) => {
         case 'PLAY_CARD':
             handleCardPlay(ws, message.roomId, message.playerId, message.card);
             break;
+        case 'DRAW_CARD':
+            handleDrawCard(ws, message.roomId, message.playerId);
+            break;
         default:
             console.log('Unknown message type:', message.type);
     }
@@ -174,6 +177,40 @@ const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: a
     });
 
     console.log(`Player ${playerId} played a card in room ${roomId}.`);
+};
+
+const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    if (room.deck.length > 0) {
+        const card = room.deck.shift(); // Take one card from the deck
+        if (card) {
+            player.hand.push(card);
+            console.log(`Player ${playerId} drew a card in room ${roomId}.`);
+
+            // Send updated hand to the player
+            player.socket.send(JSON.stringify({
+                type: 'CARD_DRAWN',
+                card: card,  // Full card details
+                hand: player.hand
+            }));
+
+            // Find the opponent
+            const opponent = room.players.find(p => p.id !== playerId);
+            if (opponent) {
+                opponent.socket.send(JSON.stringify({
+                    type: 'OPPONENT_DREW_CARD',
+                    card: { backFace: card.backFace }  // Send only the back face
+                }));
+            }
+        }
+    } else {
+        ws.send(JSON.stringify({ type: 'ERROR', message: 'No cards left in the deck' }));
+    }
 };
 
 

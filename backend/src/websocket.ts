@@ -65,6 +65,9 @@ const handleMessage = (ws: WebSocket, message: any) => {
         case 'READY':
             handlePlayerReady(ws, message.roomId, message.playerId);
             break;
+        case 'PLAY_CARD':
+            handleCardPlay(ws, message.roomId, message.playerId, message.card);
+            break;
         default:
             console.log('Unknown message type:', message.type);
     }
@@ -134,9 +137,45 @@ const handlePlayerReady = (ws: WebSocket, roomId: string, playerId: string) => {
             });
         }
 
-        room.players.forEach(p => p.socket.send(JSON.stringify({ type: 'YOUR_HAND', hand: p.hand })));
+        room.players.forEach(p => {
+            const opponent = room.players.find(op => op !== p);
+
+            p.socket.send(JSON.stringify({
+                type: 'YOUR_HAND',
+                hand: p.hand,
+                opponentHand: opponent 
+                    ? opponent.hand.map(card => ({
+                        backFace: card.backFace 
+                    })) 
+                    : []
+            }));
+        });
     }
 };
+
+const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: any) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Remove card from player's hand
+    player.hand = player.hand.filter(c => c !== card);
+
+    // Broadcast to the opponent
+    room.players.forEach(p => {
+        if (p.id !== playerId) { // Send only to the opponent
+            p.socket.send(JSON.stringify({
+                type: 'OPPONENT_PLAYED_CARD',
+                card: card
+            }));
+        }
+    });
+
+    console.log(`Player ${playerId} played a card in room ${roomId}.`);
+};
+
 
 const generateUniqueId = (): string => {
     return Math.random().toString(36).substr(2, 9);

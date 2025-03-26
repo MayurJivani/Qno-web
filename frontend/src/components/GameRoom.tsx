@@ -8,6 +8,8 @@ const GameRoom: React.FC = () => {
   const [ready, setReady] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [cardDeck, setCardDeck] = useState<any[]>([]); // Store the deck
+  const [discardCardDeck, setDiscardCardDeck] = useState<any[]>([]);
+  const [opponentCardDeck, setOpponentCardDeck] = useState<any[]>([]);
 
   const handleCreateRoom = () => {
     WebSocketClient.send(JSON.stringify({ type: 'CREATE_ROOM' }));
@@ -22,6 +24,17 @@ const GameRoom: React.FC = () => {
     WebSocketClient.send(JSON.stringify({ type: 'READY', roomId, playerId }));
   };
 
+  const handleCardPlay = (card: any) => {
+    WebSocketClient.send(
+      JSON.stringify({ type: 'PLAY_CARD', roomId, playerId, card })
+    );
+  
+    setCardDeck((prevHand) => prevHand.filter(c => c !== card));
+  
+    setDiscardCardDeck((prevDiscard) => [...prevDiscard, card]);
+  };
+  
+
   useEffect(() => {
     WebSocketClient.onmessage = (message: MessageEvent) => {
       const data = JSON.parse(message.data);
@@ -34,22 +47,26 @@ const GameRoom: React.FC = () => {
           setRoomId(data.roomId);
           setPlayerId(data.playerId);
           break;
-        case 'START_GAME':
-          { setGameStarted(true);
+        case 'START_GAME': {
+          setGameStarted(true);
           console.log("Received deck:", data.deck);
-                
-          // Extract newDeck and convert it into an array
           const formattedDeck = Object.values(data.deck || {});
           setCardDeck(formattedDeck);
-          break; }
-        case 'YOUR_HAND':
-          {console.log("Received hand:", data.hand);
+          break;
+        }
+        case 'YOUR_HAND': {
+          console.log("Received hand:", data.hand);
+          console.log("Received opponent's hand:", data.opponentHand);
           const formattedHand = Object.values(data.hand || {});
           setCardDeck(formattedHand);
-          break;}
+          setOpponentCardDeck(Object.values(data.opponentHand || {}));
+          break;
+        }
         case 'ERROR':
           alert(data.message);
           break;
+        default:
+          console.warn("Unknown message type received:", data);
       }
     };
   }, [roomId, playerId]);
@@ -69,7 +86,11 @@ const GameRoom: React.FC = () => {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
                 {cardDeck.length > 0 ? (
                   cardDeck.map((card, index) => (
-                    <div key={index} style={{ border: '1px solid black', padding: '10px' }}>
+                    <div 
+                      key={index} 
+                      style={{ border: '1px solid black', padding: '10px', cursor: 'pointer' }} 
+                      onClick={() => handleCardPlay(card)}
+                    >
                       <p><strong>Card {index + 1}</strong></p>
                       {card.frontFace && card.backFace ? (
                         <>

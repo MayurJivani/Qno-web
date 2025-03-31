@@ -15,6 +15,10 @@ const GameRoom: React.FC = () => {
     WebSocketClient.send(JSON.stringify({ type: 'CREATE_ROOM' }));
   };
 
+  const handleLeaveRoom = () => {
+    WebSocketClient.send(JSON.stringify({ type: 'LEFT_ROOM', roomId, playerId }));
+  }
+
   const handleJoinRoom = () => {
     WebSocketClient.send(JSON.stringify({ type: 'JOIN_ROOM', roomId: inputRoomId }));
   };
@@ -71,7 +75,9 @@ const GameRoom: React.FC = () => {
           console.log("Opponent's Hand After:", opponentCardDeck);
           setDiscardCardDeck(prev => [...prev, data.card]);
           break;
-
+        case 'LEFT_ROOM':
+            alert("Left");
+            break;
         case 'CARD_DRAWN':  // 🔹 Handling the drawn card
           setCardDeck(prevDeck => [...prevDeck, data.card]);
           break;
@@ -94,7 +100,7 @@ const GameRoom: React.FC = () => {
         <div>
           <p>Room ID: {roomId}</p>
           <p>Player ID: {playerId ? playerId : 'Waiting for player ID...'}</p>
-
+          <button onClick={handleLeaveRoom}>Leave Room</button>
           {gameStarted ? (
             <div>
               <h2>Game Started!</h2>

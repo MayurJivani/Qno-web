@@ -107,7 +107,7 @@ const createRoom = (ws: WebSocket) => {
 
 const joinRoom = (ws: WebSocket, roomId: string) => {
     const room = rooms.get(roomId);
-    if (room && room.players.size < 2) {
+    if (room && room.players.size < 4) {
         const { playerId } = playerMap.get(ws)!;
         room.players.set(playerId, { id: playerId, socket: ws, ready: false, hand: [] });
         playerMap.set(ws, { roomId, playerId });
@@ -128,14 +128,9 @@ const handlePlayerReady = (ws: WebSocket, roomId: string, playerId: string) => {
     player.ready = true;
     console.log(`Player ${playerId} is ready in room ${roomId}.`);
 
-    if (room.players.size === 2 && Array.from(room.players.values()).every(p => p.ready)) {
+    if (room.players.size === 4 && Array.from(room.players.values()).every(p => p.ready)) {
         console.log(`Both players in room ${roomId} are ready. Starting game.`);
         room.players.forEach(p => p.socket.send(JSON.stringify({ type: 'START_GAME', deck: room.deck })));
-
-        if (room.deck.length < 14) {
-            console.log(`Not enough cards to start the game in room ${roomId}.`);
-            return;
-        }
 
         dealCards(room);
     }
@@ -152,13 +147,19 @@ const dealCards = (room: GameRoom) => {
     }
 
     room.players.forEach(p => {
-        const opponent = Array.from(room.players.values()).find(op => op !== p);
+        const opponents = Array.from(room.players.values()).filter(op => op !== p);
+        const opponentHands = opponents.map(op => ({
+            playerId: op.id, // You can also include playerId to identify each opponent
+            hand: op.hand.map(card => ({ backFace: card.backFace }))
+        }));
+    
         p.socket.send(JSON.stringify({
             type: 'YOUR_HAND',
             hand: p.hand,
-            opponentHand: opponent ? opponent.hand.map(card => ({ backFace: card.backFace })) : []
+            opponentHands: opponentHands // Send the array of opponent hands
         }));
     });
+    
 };
 
 const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: any) => {
@@ -172,12 +173,18 @@ const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: a
 
     room.players.forEach(p => {
         if (p.id !== playerId) {
-            p.socket.send(JSON.stringify({ type: 'OPPONENT_PLAYED_CARD', card }));
+            
+            p.socket.send(JSON.stringify({
+                type: 'OPPONENT_PLAYED_CARD',
+                card,
+                opponentId: playerId  
+            }));
         }
     });
 
     console.log(`Player ${playerId} played a card in room ${roomId}.`);
 };
+
 
 const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
     const room = rooms.get(roomId);
@@ -192,14 +199,21 @@ const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
             player.hand.push(card);
             console.log(`Player ${playerId} drew a card in room ${roomId}.`);
 
+            // Send the card drawn to the current player along with their updated hand
             player.socket.send(JSON.stringify({ type: 'CARD_DRAWN', card, hand: player.hand }));
 
-            const opponent = Array.from(room.players.values()).find(p => p.id !== playerId);
-            if (opponent) {
-                opponent.socket.send(JSON.stringify({ type: 'OPPONENT_DREW_CARD', card: { backFace: card.backFace } }));
-            }
+            const opponents = Array.from(room.players.values()).filter(p => p.id !== playerId);
+            opponents.forEach(opponent => {
+                
+                opponent.socket.send(JSON.stringify({
+                    type: 'OPPONENT_DREW_CARD',
+                    card: { backFace: card.backFace },
+                    opponentId: playerId  // Pass the playerId of the person who drew the card
+                }));
+            });
         }
     } else {
         ws.send(JSON.stringify({ type: 'ERROR', message: 'No cards left in the deck' }));
     }
 };
+

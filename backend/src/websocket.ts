@@ -34,23 +34,35 @@ export function setupWebSocket(server: http.Server) {
 }
 
 const handlePlayerDisconnect = (ws: WebSocket) => {
-    const { roomId, playerId } = playerMap.get(ws)!;
-    const room = rooms.get(roomId);
-
-    if (room) {
-        room.players.delete(playerId);
-        notifyRoomPlayers(room, 'PLAYER_LEFT', playerId);
-        
-        // Cleanup room if no players left
-        if (room.players.size === 0) {
-            rooms.delete(roomId);
-            console.log(`Room ${roomId} deleted as no players are left.`);
-        }
+    const playerData = playerMap.get(ws);
+    if (!playerData) {
+        ws.close();
+        return;
     }
 
+    const { roomId, playerId } = playerData;
     playerMap.delete(ws); // Clean up player data
+
+    if (!roomId) {
+        ws.send(JSON.stringify({ type: 'DISCONNECTED' }));
+        return;
+    }
+
     ws.send(JSON.stringify({ type: 'LEFT_ROOM', roomId }));
+
+    const room = rooms.get(roomId);
+    room.players.delete(playerId);
+
+    if (room.players.size === 0) {
+        rooms.delete(roomId);
+        console.log(`Room ${roomId} deleted as no players are left.`);
+    } else {
+        notifyRoomPlayers(room, 'PLAYER_LEFT', playerId);
+    }
 };
+
+
+
 
 const notifyRoomPlayers = (room: GameRoom, type: string, playerId: string) => {
     room.players.forEach(player => {

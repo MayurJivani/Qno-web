@@ -1,6 +1,5 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';  // Import the http module
-import { generateDrawPile } from './drawPile';
 import { Card } from './models/Card';
 import { Status as GameRoomStatus } from './enums/gameRoom/Status';
 import { Status as PlayerStatus } from './enums/player/Status';
@@ -16,12 +15,13 @@ export function setupWebSocket(server: http.Server) {
 	const wss = new WebSocketServer({ server });
 
 	wss.on('connection', (ws: WebSocket) => {
-		console.log('A user has connected.');
-		const roomId = uuidv4();
-		const playerId = uuidv4();
-		playerMap.set(ws, { roomId, playerId });
+		console.log('[CONNECTED] A user has connected.');
 
-		ws.on('message', (message: string) => handleMessage(ws, JSON.parse(message)));
+		ws.send(JSON.stringify({ type: 'CONNECTED', message: 'WebSocket connection setup successfully' }))
+
+		ws.on('message', (message: string) => {
+			handleMessage(ws, JSON.parse(message));
+		});
 		ws.on('close', () => handlePlayerDisconnect(ws));
 		ws.on('error', (err) => console.error('WebSocket error:', err));
 	});
@@ -29,11 +29,12 @@ export function setupWebSocket(server: http.Server) {
 
 const handleMessage = (ws: WebSocket, message: any) => {
 	const actions: { [key: string]: Function } = {
-		'CREATE_ROOM': () => createRoom(ws, message.roomId, message.playerId),
+		'CREATE_ROOM': () => createRoom(ws),
+		'JOIN_ROOM': () => joinRoom(ws, message.roomId),
+		'REJOIN_ROOM': () => rejoinRoom(ws, message.roomId, message.playerId),
 		'LEFT_ROOM': () => handlePlayerDisconnect(ws, message.roomId, message.playerId),
-		'JOIN_ROOM': () => joinRoom(ws, message.roomId, message.playerId),
-		'READY': () => handlePlayerReady(ws, message.roomId, message.playerId),
-		'START': () => handleGameStart(ws, message.roomId, message.playerId),
+		'PLAYER_READY': () => handlePlayerReady(ws, message.roomId, message.playerId),
+		'START_GAME': () => handleGameStart(ws, message.roomId, message.playerId),
 		'PLAY_CARD': () => handleCardPlay(ws, message.roomId, message.playerId, message.card),
 		'DRAW_CARD': () => handleDrawCard(ws, message.roomId, message.playerId),
 		'GET_GAME_STATE': () => sendGameState(ws)
@@ -45,16 +46,47 @@ const handleMessage = (ws: WebSocket, message: any) => {
 };
 
 
-const createRoom = (ws: WebSocket, roomId: string, playerId: string) => {
+const createRoom = (ws: WebSocket) => {
+
+	const roomId = uuidv4();
+	const playerId = uuidv4();
+
+	// Save player info
+	playerMap.set(ws, { roomId, playerId });
 
 	const player: Player = new Player(playerId, ws);
 
 	const room: GameRoom = new GameRoom(roomId, player);
-	rooms.set(roomId, room);
 	playerMap.set(ws, { roomId: roomId, playerId: playerId });
-
 	ws.send(JSON.stringify({ type: 'ROOM_CREATED', roomId, playerId }));
-	console.log(`Room created: ${roomId}`);
+
+	//addPlayer() function implicitly sends 'JOINED_ROOM' message to client
+	room.addPlayer(player, playerMap);
+	rooms.set(roomId, room);
+
+	console.log(`[ROOM_CREATED] Room created: ${roomId}`);
+	console.log(`[ROOM_CREATED] Player: ${playerId} has joined room: ${roomId} `);
+};
+
+const joinRoom = (ws: WebSocket, roomId: string) => {
+
+	const room: GameRoom = rooms.get(roomId)!;
+	if (!room) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Room not found' }));
+		return;
+	}
+	const playerId = uuidv4();
+	playerMap.set(ws, { roomId, playerId });
+
+	// Check if room is not full and game hasn't started yet
+	if (room.players.size < 4 && (room.status == GameRoomStatus.NOT_STARTED)) {
+		const newPlayer: Player = new Player(playerId, ws);
+		//addPlayer() function implicitly sends 'JOINED_ROOM' message to client
+		room.addPlayer(newPlayer, playerMap)
+		console.log(`[ROOM_JOINED] Player: ${playerId} has joined room: ${roomId}`);
+	} else {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Room is full or game has already started' }));
+	}
 };
 
 const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: string) => {
@@ -66,53 +98,45 @@ const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: strin
 	if (!roomID || !playerID) {
 		const result = playerMap.get(ws);
 		if (!result) {
-			console.log("Player not found in playerMap.");
+			console.log(`[ERROR] Player: ${playerId} not found in playerMap.`);
+			ws.close(); // Close the connection anyway
 			return;
 		}
 		roomID = result.roomId;
 		playerID = result.playerId;
 	}
 
-	// Send appropriate WebSocket message
-	ws.send(JSON.stringify({
-		type: playerId && roomId ? 'LEFT_ROOM' : 'DISCONNECTED',
-		roomId: roomID
-	}));
-
 	// Retrieve the room
 	const room = rooms.get(roomID);
 	if (!room) {
-		console.log(`Room ${roomID} was not found. WebSocket could not be closed.`);
+		console.log(`[ERROR] Room ${roomID} was not found. WebSocket could not be closed.`);
 		return;
 	}
 
+	const isHost = room.host.id === playerID;
+
 	// Remove player from the room and clean up mappings
+	// Remove player implicitly checks whether room size is 0 or not. If it is zero, it deletes the room.
 	room.removePlayer(playerID, rooms);
 	playerMap.delete(ws);
 	ws.close();
 
-	// If the room is empty, delete it; otherwise, notify remaining players
+	// If the room is empty, no need to broadcast anything
 	if (room.players.size === 0) {
-		rooms.delete(roomID);
-		console.log(`Room ${roomID} deleted as no players are left.`);
-	} else {
-		room.broadcast({ type: 'PLAYER_LEFT', playerID });
+		return;
 	}
-};
 
-const joinRoom = (ws: WebSocket, roomId: string, playerId: string) => {
+	// Otherwise, notify remaining players first
+	room.broadcast({ type: 'PLAYER_LEFT', playerID });
 
-	const room: GameRoom = rooms.get(roomId)!;
-
-	if (room && room.players.size < 4 && (room.status == GameRoomStatus.NOT_STARTED)) {
-		const newPlayer: Player = new Player(playerId, ws);
-		room.players.set(playerId, newPlayer);
-		playerMap.set(ws, { roomId, playerId });
-
-		ws.send(JSON.stringify({ type: 'JOINED_ROOM', roomId, playerId }));
-		console.log(`Player joined room: ${roomId}`);
-	} else {
-		ws.send(JSON.stringify({ type: 'ERROR', message: 'Room is full or does not exist or cannot be joined currently' }));
+	// If host left, assign a new one
+	if (isHost) {
+		const remainingPlayers = Array.from(room.players.values());
+		if (remainingPlayers.length > 0) {
+			room.host = remainingPlayers[0];
+			room.broadcast({ type: 'NEW_HOST', newHostId: room.host.id });
+			console.log(`[NEW_HOST] Player: ${room.host.id} is now the new host of room: ${room.id}.`);
+		}
 	}
 };
 
@@ -126,7 +150,8 @@ const handlePlayerReady = (ws: WebSocket, roomId: string, playerId: string) => {
 	}
 
 	result.player.status = PlayerStatus.READY;
-	console.log(`Player ${playerId} is ready in room ${roomId}.`);
+	result.room.broadcast({ type: 'PLAYER_READY', playerId });
+	console.log(`[PLAYER_READY] Player: ${playerId} is ready in room ${roomId}.`);
 };
 
 const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {
@@ -138,19 +163,17 @@ const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {
 		return;
 	}
 
-	let room = result.room;
+	let room: GameRoom = result.room;
 
 	//Check if the person starting the game is the host of the gameRoom
 	if (playerId === room.host.id && room.allPlayersReady()) {
-		console.log(`Starting game in room ${roomId}.`);
-		room.broadcast({ type: 'START_GAME', deck: room.drawPile });
+		console.log(`[START_GAME] Starting game in room: ${roomId}.`);
+		room.broadcast({ type: 'START_GAME', roomId: roomId, drawPile: room.drawPile });
 		dealCards(room);
 	}
 }
 
 const dealCards = (room: GameRoom) => {
-
-	const opponentPlayersHands: Map<Player, CardFace[]> = new Map();
 
 	for (let i = 0; i < 7; i++) {
 		room.players.forEach(p => {
@@ -161,7 +184,9 @@ const dealCards = (room: GameRoom) => {
 		});
 	}
 
-	room.players.forEach(p => {
+	room.players.forEach((p: Player) => {
+
+		const opponentPlayersHands: Map<string, CardFace[]> = new Map();
 		//Opponents are players who have different id's than the current player
 		const opponents = Array.from(room.players.values()).filter(op => op.id !== p.id);
 
@@ -172,14 +197,18 @@ const dealCards = (room: GameRoom) => {
 				let cardFace: CardFace = inactiveCardFace(room, card);
 				visibleCardFaces.push(cardFace);
 			})
-			opponentPlayersHands.set(op, visibleCardFaces);
+			opponentPlayersHands.set(op.id, visibleCardFaces);
 		})
 
-		p.socket.send(JSON.stringify({
+		p.sendMessage({
 			type: 'YOUR_HAND',
-			hand: p.hand,
-			opponentHands: opponentPlayersHands // Send the array of opponent hands
-		}));
+			hand: p.hand
+		})
+
+		p.sendMessage({
+			type: 'OPPONENT_HAND',
+			opponentHands: Object.fromEntries(opponentPlayersHands) // Convert Map to object for serialization
+		})
 	})
 };
 
@@ -193,7 +222,7 @@ const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: C
 
 	const { room, player } = result;
 
-	player.hand = player.hand.filter(c => c !== card);
+	player.hand = player.hand.filter(c => !areCardsEqual(c, card));
 
 	handleCardEffect(card);
 
@@ -207,10 +236,16 @@ const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: C
 				cardFacePlayed,
 				opponentId: playerId
 			}));
+		} else {
+			p.socket.send(JSON.stringify({
+				type: 'PLAYED_CARD',
+				cardFacePlayed,
+				playerId: playerId
+			}));
 		}
 	});
 
-	console.log(`Player ${playerId} played a ${cardFacePlayed.colour} ${cardFacePlayed.number} card in room ${roomId}.`);
+	console.log(`[PLAYED_CARD] Player: ${playerId} played a ${cardFacePlayed.colour} ${cardFacePlayed.number} card in room: ${roomId}.`);
 };
 
 
@@ -240,7 +275,7 @@ const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
 	}));
 
 	let cardFaceDrawn: CardFace = activeCardFace(room, card);
-	console.log(`Player ${playerId} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.number} card in room ${roomId}.`);
+	console.log(`[CARD_DRAWN] Player: ${playerId} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.number} card in room: ${roomId}.`);
 
 	const opponents = Array.from(room.players.values()).filter(op => op.id !== playerId);
 	opponents.forEach(opponent => {
@@ -254,6 +289,24 @@ const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
 
 const handleCardEffect = (card: Card) => {
 	//TODO
+}
+
+const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string) => {
+	const room = rooms.get(roomId);
+
+	if (!room || !room.players.has(playerId)) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Could not rejoin: Invalid room or playerId' }));
+		return;
+	}
+
+	// Re-associate ws with this player
+	playerMap.set(ws, { playerId, roomId });
+
+	ws.send(JSON.stringify({
+		type: 'REJOINED_ROOM',
+		playerId,
+		roomId,
+	}));
 }
 
 const sendGameState = (ws: WebSocket) => {
@@ -301,3 +354,7 @@ function inactiveCardFace(room: GameRoom, card: Card): CardFace {
 	return room.isLightSideUp ? card.darkSide : card.lightSide;
 }
 
+function areCardsEqual(cardA: Card, cardB: Card): boolean {
+	return (cardA.lightSide.colour === cardB.lightSide.colour && cardA.lightSide.number === cardB.lightSide.number)
+		&& (cardA.darkSide.colour === cardB.darkSide.colour && cardA.darkSide.number === cardB.darkSide.number);
+}

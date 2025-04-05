@@ -23,7 +23,7 @@ export class GameRoom {
         this.players.set(host.id, host);
     }
 
-    addPlayer(player: Player, playerMap: Map<WebSocket, { roomId: string; playerId: string }>) {
+    addPlayer(player: Player, playerMap: Map<WebSocket, { roomId: string; playerId: string }>): void {
         if (this.players.size < 4 && this.status === GameRoomStatus.NOT_STARTED) {
             this.players.set(player.id, player);
             playerMap.set(player.socket, { roomId: this.id, playerId: player.id });
@@ -33,15 +33,16 @@ export class GameRoom {
         }
     }
 
-    removePlayer(playerId: string, rooms: Map<string, GameRoom>) {
+    removePlayer(playerId: string, rooms: Map<string, GameRoom>): void {
         this.players.delete(playerId);
+        console.log(`[DISCONNECTED] Player: ${playerId} has left room: ${this.id}`);
         if (this.players.size === 0) {
             rooms.delete(this.id);
-            console.log(`Room ${this.id} deleted.`);
+            console.log(`[ROOM_DELETED] Room: ${this.id} was deleted as there were no players left`);
         }
     }
 
-    broadcast(message: any, excludePlayerId?: string) {
+    broadcast(message: any, excludePlayerId?: string): void {
         this.players.forEach(player => {
             if (player.id !== excludePlayerId) {
                 player.sendMessage(message);
@@ -49,7 +50,7 @@ export class GameRoom {
         });
     }
 
-    allPlayersReady() {
+    allPlayersReady(): Boolean {
         //Check if Room has 2-4 players and if all players are ready before starting the game
         return this.players.size >= 2 && this.players.size <= 4 &&
             [...this.players.values()].every(p => p.status === PlayerStatus.READY);

@@ -5,7 +5,17 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec ts-node src/app.ts",
-    "generateDrawPile": "jest tests/generateDrawPile.test.ts"
+    "generateDrawPileTest": "jest tests/game/generateDrawPile.test.ts",
+    "setupWebSocketTest": "jest tests/websocket/setupWebsocket.test.ts",
+    "createRoomTest": "jest tests/websocket/createRoom.test.ts",
+    "joinRoomTest": "jest tests/websocket/joinRoom.test.ts",
+    "playerDisconnectBroadcastTest": "jest tests/websocket/playerDisconnectBroadcast.test.ts",
+    "playerDisconnectRoomDeleteTest": "jest tests/websocket/playerDisconnectRoomDelete.test.ts",
+    "playerReadyTest": "jest tests/websocket/playerReady.test.ts",
+    "gameStartTest": "jest tests/websocket/gameStart.test.ts",
+    "dealCardsTest": "jest tests/websocket/dealCards.test.ts",
+    "cardPlayTest": "jest tests/websocket/cardPlay.test.ts",
+    "drawCardTest": "jest tests/websocket/drawCard.test.ts"
   },
   "keywords": [],
   "author": "",

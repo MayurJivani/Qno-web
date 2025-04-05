@@ -25,10 +25,7 @@ const darkSideActionCards: string[] = [
 	ActionCards.Dark.Teleportation,
 ];
 
-const lightSideCardFaces: CardFace[] = [];
-const darkSideCardFaces: CardFace[] = [];
 
-const drawPile: Card[] = [];
 
 // Helper function that creates a CardFace object and adds it to a list
 function addCardFace(cardFacesList: CardFace[], colour: string, number: string): void {
@@ -49,8 +46,11 @@ export function Shuffle<T>(array: T[]): void {
 
 // Function to generate complete card deck
 export function generateDrawPile(): Card[] {
-	generateLightSideCardFaces();
-	generateDarkSideCardFaces();
+
+	const drawPile: Card[] = [];
+
+	const lightSideCardFaces: CardFace[] = generateLightSideCardFaces();
+	const darkSideCardFaces: CardFace[] = generateDarkSideCardFaces();
 
 	Shuffle(lightSideCardFaces);
 	Shuffle(darkSideCardFaces);
@@ -70,7 +70,9 @@ export function generateDrawPile(): Card[] {
 	return drawPile;
 }
 
-function generateLightSideCardFaces(): void {
+function generateLightSideCardFaces(): CardFace[] {
+
+	const lightSideCardFaces: CardFace[] = [];
 	//Generating light side card faces with number 0-9
 	for (let i = 0; i <= 9; i++) {
 		for (let j = 0; j < lightSideColours.length; j++) {
@@ -102,9 +104,14 @@ function generateLightSideCardFaces(): void {
 			addCardFace(lightSideCardFaces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
 		}
 	}
+
+	return lightSideCardFaces;
 }
 
-function generateDarkSideCardFaces(): void {
+function generateDarkSideCardFaces(): CardFace[] {
+
+
+	const darkSideCardFaces: CardFace[] = [];
 	//Generating dark side card faces with number 0-9
 	for (let i = 0; i <= 9; i++) {
 		for (let j = 0; j < darkSideColours.length; j++) {
@@ -135,7 +142,7 @@ function generateDarkSideCardFaces(): void {
 			addCardFace(darkSideCardFaces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
 		}
 	}
+
+	return darkSideCardFaces;
 }
 
-// Export the deck as JSON
-export const drawPileJSON = JSON.stringify({ drawPile: generateDrawPile() });

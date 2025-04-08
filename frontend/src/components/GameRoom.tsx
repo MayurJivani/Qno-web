@@ -138,15 +138,41 @@ const GameRoom: React.FC = () => {
 
       case 'CARD_DRAWN': {
         const newCard = data.card as any;
-        setCardDeck((prev) => [
-          ...prev,
-          new Card(
-            { colour: newCard.frontFace.cardColor, number: newCard.frontFace.cardValue },
-            { colour: newCard.backFace.cardColor, number: newCard.backFace.cardValue }
-          ),
-        ]);
+
+        if (!newCard?.lightSide || !newCard?.darkSide) {
+          console.error('[WS] Invalid card format in CARD_DRAWN:', newCard);
+          return;
+        }
+
+        const constructedCard = new Card(
+          { colour: newCard.lightSide.colour, number: newCard.lightSide.number },
+          { colour: newCard.darkSide.colour, number: newCard.darkSide.number }
+        );
+
+        setCardDeck((prev) => [...prev, constructedCard]);
         break;
       }
+
+      case 'OPPONENT_DREW_CARD': {
+        const { opponentId, card } = data as {
+          opponentId: string;
+          card: { colour: string; number: string };
+        };
+      
+        setOpponentCardDecks((prev) => {
+          const opponentDeck = prev[opponentId] ?? [];
+          const newCard = { backFace: { colour: card.colour, number: card.number } };
+      
+          return {
+            ...prev,
+            [opponentId]: [...opponentDeck, newCard], // create new array
+          };
+        });
+      
+        break;
+      }
+      
+
 
       case 'LEFT_ROOM':
         alert('Left the room.');

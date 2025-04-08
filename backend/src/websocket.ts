@@ -169,6 +169,8 @@ const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {
 	//Check if the person starting the game is the host of the gameRoom
 	if (playerId === room.host.id && room.allPlayersReady()) {
 		console.log(`[START_GAME] Starting game in room: ${roomId}.`);
+		room.status = GameRoomStatus.ACTIVE;
+
 		room.broadcast({ type: 'START_GAME', roomId: roomId, drawPile: room.drawPile });
 		dealCards(room);
 	}

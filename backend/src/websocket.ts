@@ -83,6 +83,7 @@ const joinRoom = (ws: WebSocket, roomId: string) => {
 		const newPlayer: Player = new Player(playerId, ws);
 		//addPlayer() function implicitly sends 'JOINED_ROOM' message to client
 		room.addPlayer(newPlayer, playerMap)
+		room.broadcast({ type: 'ROOM_JOINED', playerId: playerId});
 		console.log(`[ROOM_JOINED] Player: ${playerId} has joined room: ${roomId}`);
 	} else {
 		ws.send(JSON.stringify({ type: 'ERROR', message: 'Room is full or game has already started' }));

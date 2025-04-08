@@ -1,173 +1,276 @@
-import React, { useEffect, useState } from 'react';
-import WebSocketClient from './WebSocketClient';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useGameSocket } from '../hooks/useGameSocket';
+import { Card, Side } from '../classes/Card';
+
+interface WSMessage {
+  type: string;
+  [key: string]: unknown;
+}
+
+interface OpponentCard {
+  backFace: Side;
+}
+
+const COLORS = {
+  light: {
+    Blue: '#006bb5',
+    Green: '#3ba345',
+    Red: '#ec1c24',
+    Yellow: '#ffda00',
+    Black: '#010101',
+  },
+  dark: {
+    Orange: '#f8a01b',
+    Teal: '#00a89a',
+    Pink: '#eb008b',
+    Purple: '#82298f',
+    Black: '#010101',
+  },
+};
+
+const getColor = (side: Side, isLight: boolean): string =>
+  (isLight ? COLORS.light : COLORS.dark)[side.colour] ?? 'gray';
+
+const CardComponent: React.FC<{
+  card: Card;
+  isLight: boolean;
+  onClick?: () => void;
+}> = ({ card, isLight, onClick }) => {
+  const face = isLight ? card.lightSide : card.darkSide;
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        ...cardStyle,
+        backgroundColor: getColor(face, isLight),
+      }}
+    >
+      {face.number}
+    </div>
+  );
+};
 
 const GameRoom: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [inputRoomId, setInputRoomId] = useState<string>('');
-  const [ready, setReady] = useState<boolean>(false);
-  const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [cardDeck, setCardDeck] = useState<any[]>([]);
-  const [discardCardDeck, setDiscardCardDeck] = useState<any[]>([]);
-  const [opponentCardDeck, setOpponentCardDeck] = useState<any[]>([]);
-
-  const handleCreateRoom = () => {
-    WebSocketClient.send(JSON.stringify({ type: 'CREATE_ROOM' }));
-  };
-
-  const handleLeaveRoom = () => {
-    WebSocketClient.send(JSON.stringify({ type: 'LEFT_ROOM', roomId, playerId }));
-  }
-
-  const handleJoinRoom = () => {
-    WebSocketClient.send(JSON.stringify({ type: 'JOIN_ROOM', roomId: inputRoomId }));
-  };
-
-  const handleReady = () => {
-    setReady(true);
-    WebSocketClient.send(JSON.stringify({ type: 'READY', roomId, playerId }));
-  };
-
-  const handleCardPlay = (card: any) => {
-    WebSocketClient.send(JSON.stringify({ type: 'PLAY_CARD', roomId, playerId, card }));
-
-    setCardDeck((prevHand) => prevHand.filter(c => c !== card));
-    setDiscardCardDeck((prevDiscard) => [...prevDiscard, card]);
-  };
-
-  // 🔹 Function to draw a card
-  const handleDrawCard = () => {
-    if (!roomId || !playerId) return;
-
-    WebSocketClient.send(JSON.stringify({
-      type: 'DRAW_CARD',
-      roomId,
-      playerId
-    }));
-  };
+  const [inputRoomId, setInputRoomId] = useState('');
+  const [ready, setReady] = useState(false);
+  const [allReady, setAllReady] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [cardDeck, setCardDeck] = useState<Card[]>([]);
+  const [opponentCardDecks, setOpponentCardDecks] = useState<Record<string, OpponentCard[]>>({});
+  const [isLightSideUp, setIsLightSideUp] = useState(true);
+  const [playerList, setPlayerList] = useState<string[]>([]);
+  const [readyPlayerIds, setReadyPlayerIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    WebSocketClient.onmessage = (message: MessageEvent) => {
-      const data = JSON.parse(message.data);
+    setAllReady(playerList.length > 0 && playerList.every((id) => readyPlayerIds.has(id)));
+  }, [playerList, readyPlayerIds]);
 
-      switch (data.type) {
-        case 'ROOM_CREATED':
-          setRoomId(data.roomId);
-          setPlayerId(data.playerId);
-          break;
-        case 'JOINED_ROOM':
-          setRoomId(data.roomId);
-          setPlayerId(data.playerId);
-          break;
-        case 'START_GAME':
-          setGameStarted(true);
-          setCardDeck(Object.values(data.deck || {}));
-          break;
-        case 'YOUR_HAND':
-          setCardDeck(Object.values(data.hand || {}));
-          setOpponentCardDeck(Object.values(data.opponentHand || {}));
-          break;
-        case 'OPPONENT_PLAYED_CARD':
-          console.log("Opponent Played Card:", data.card);
-          console.log("Opponent's Hand Before:", opponentCardDeck);
+  const resetGameState = () => {
+    setRoomId(null);
+    setPlayerId(null);
+    setReady(false);
+    setAllReady(false);
+    setGameStarted(false);
+    setCardDeck([]);
+    setOpponentCardDecks({});
+    setIsHost(false);
+  };
 
-          setOpponentCardDeck(prev => prev.filter(c => c.backFace.cardId !== data.card.backFace.cardId));
-          console.log("Opponent's Hand After:", opponentCardDeck);
-          setDiscardCardDeck(prev => [...prev, data.card]);
-          break;
-        case 'LEFT_ROOM':
-            alert("Left");
-            break;
-        case 'CARD_DRAWN':  // 🔹 Handling the drawn card
-          setCardDeck(prevDeck => [...prevDeck, data.card]);
-          break;
-        case 'OPPONENT_DREW_CARD':
-          setOpponentCardDeck(prevDeck => [...prevDeck, { backFace: data.card.backFace }]); // Add backface card to opponent's hand
-          break;
-        case 'ERROR':
-          alert(data.message);
-          break;
-        default:
-          console.warn("Unknown message type received:", data);
+  const onSocketMessage = useCallback((data: WSMessage) => {
+    console.log('[WS] Received:', data);
+
+    switch (data.type) {
+      case 'ROOM_CREATED':
+      case 'JOINED_ROOM': {
+        const { roomId, playerId } = data as { roomId: string; playerId: string };
+        setRoomId(roomId);
+        setPlayerId(playerId);
+        localStorage.setItem('roomId', roomId);
+        localStorage.setItem('playerId', playerId);
+        if (data.type === 'ROOM_CREATED') setIsHost(true);
+        break;
       }
-    };
-  }, [roomId, playerId, opponentCardDeck]);
+
+      case 'ROOM_JOINED': {
+        const joinedPlayerId = data.playerId as string;
+        setPlayerList((prev) => (prev.includes(joinedPlayerId) ? prev : [...prev, joinedPlayerId]));
+        break;
+      }
+
+      case 'PLAYER_READY': {
+        const readyId = data.playerId as string;
+        setReadyPlayerIds((prev) => new Set(prev).add(readyId));
+        break;
+      }
+
+      case 'START_GAME':
+      case 'YOUR_HAND': {
+        const cards = (data.drawPile || data.hand) as any[];
+        if (!Array.isArray(cards)) {
+          console.error(`[WS] Invalid card data for ${data.type}:`, data);
+          return;
+        }
+        setCardDeck(cards.map(c =>
+          new Card(
+            { colour: c.lightSide.colour, number: c.lightSide.number },
+            { colour: c.darkSide.colour, number: c.darkSide.number }
+          )
+        ));
+        setGameStarted(true);
+        break;
+      }
+
+      case 'OPPONENT_HAND': {
+        const rawOpponentHands = data.opponentHands as Record<string, any[]>;
+        const parsedHands: Record<string, OpponentCard[]> = Object.entries(rawOpponentHands).reduce(
+          (acc, [id, cards]) => {
+            acc[id] = cards.map(c => ({ backFace: { colour: c.colour, number: c.number } }));
+            return acc;
+          },
+          {} as Record<string, OpponentCard[]>
+        );
+        setOpponentCardDecks(parsedHands);
+        break;
+      }
+
+      case 'CARD_DRAWN': {
+        const newCard = data.card as any;
+        setCardDeck((prev) => [
+          ...prev,
+          new Card(
+            { colour: newCard.frontFace.cardColor, number: newCard.frontFace.cardValue },
+            { colour: newCard.backFace.cardColor, number: newCard.backFace.cardValue }
+          ),
+        ]);
+        break;
+      }
+
+      case 'LEFT_ROOM':
+        alert('Left the room.');
+        break;
+
+      case 'ERROR':
+        alert(data.message as string);
+        break;
+    }
+  }, []);
+
+  const handleCreateRoom = () => connect({ type: 'CREATE_ROOM' });
+  const handleJoinRoom = () => connect({ type: 'JOIN_ROOM', roomId: inputRoomId });
+  const handleLeaveRoom = () => {
+    sendMessage({ type: 'LEFT_ROOM', roomId, playerId });
+    disconnect();
+    resetGameState();
+  };
+  const handleReady = () => {
+    setReady(true);
+    sendMessage({ type: 'PLAYER_READY', roomId, playerId });
+  };
+  const handleStartGame = () => sendMessage({ type: 'START_GAME', roomId, playerId });
+  const handleCardPlay = (card: Card) => {
+    sendMessage({ type: 'PLAY_CARD', roomId, playerId, card });
+    setCardDeck((prev) => prev.filter((c) => c !== card));
+  };
+  const handleDrawCard = () => sendMessage({ type: 'DRAW_CARD', roomId, playerId });
+
+  const { connect, disconnect, sendMessage } = useGameSocket(onSocketMessage);
 
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
       <h1>Qno Game Room</h1>
+
       {roomId ? (
-        <div>
+        <>
           <p>Room ID: {roomId}</p>
-          <p>Player ID: {playerId ? playerId : 'Waiting for player ID...'}</p>
+          <p>Player ID: {playerId}</p>
           <button onClick={handleLeaveRoom}>Leave Room</button>
+
           {gameStarted ? (
-            <div>
+            <>
               <h2>Game Started!</h2>
+              <button onClick={() => setIsLightSideUp((prev) => !prev)}>
+                Flip Cards ({isLightSideUp ? 'Light' : 'Dark'} Side Up)
+              </button>
 
-              <h3>Opponent's Hand:</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                {opponentCardDeck.map((card, index) => (
-                  <div key={index} style={{ border: '1px solid black', padding: '10px' }}>
-                    <p><strong>Card {index + 1}</strong></p>
-                    {card.backFace ? (
-                      <p>{card.backFace.cardColor} - {card.backFace.cardValue}</p>
-                    ) : (
-                      <p>Unknown</p>
-                    )}
+              <section>
+                <h3>Opponent’s Cards:</h3>
+                {Object.entries(opponentCardDecks).map(([opponentId, cards]) => (
+                  <div key={opponentId} style={{ marginBottom: '20px' }}>
+                    <h4>Opponent ID: {opponentId}</h4>
+                    <div style={cardRowStyle}>
+                      {cards.map((card, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            ...cardStyle,
+                            backgroundColor: getColor(card.backFace, false),
+                          }}
+                        >
+                          {card.backFace.number}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
-              </div>
+              </section>
 
-
-              <h3>Your Cards:</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                {cardDeck.map((card, index) => (
-                  <div
-                    key={index}
-                    style={{ border: '1px solid black', padding: '10px', cursor: 'pointer' }}
-                    onClick={() => handleCardPlay(card)}
-                  >
-                    <p><strong>Card {index + 1}</strong></p>
-                    <p>{card.frontFace.cardColor} - {card.frontFace.cardValue}</p>
-                  </div>
-                ))}
-              </div>
-
-              <h3>Discard Pile:</h3>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                {discardCardDeck.map((card, index) => (
-                  <div key={index} style={{ border: '1px solid red', padding: '10px' }}>
-                    <p><strong>Discard {index + 1}</strong></p>
-                    <p>{card.frontFace.cardColor} - {card.frontFace.cardValue}</p>
-                  </div>
-                ))}
-              </div>
+              <section>
+                <h3>Your Cards:</h3>
+                <div style={cardRowStyle}>
+                  {cardDeck.map((card, i) => (
+                    <CardComponent
+                      key={i}
+                      card={card}
+                      isLight={isLightSideUp}
+                      onClick={() => handleCardPlay(card)}
+                    />
+                  ))}
+                </div>
+              </section>
 
               <button onClick={handleDrawCard}>Draw Card</button>
-
-            </div>
+            </>
           ) : (
-            <div>
+            <>
               {!ready && <button onClick={handleReady}>Ready</button>}
-              {ready && <p>Waiting for other player...</p>}
-            </div>
+              {ready && <p>Waiting for opponent...</p>}
+              {isHost && ready && allReady && <button onClick={handleStartGame}>Start Game</button>}
+            </>
           )}
-        </div>
+        </>
       ) : (
-        <div>
+        <>
           <button onClick={handleCreateRoom}>Create Room</button>
           <input
-            type="text"
-            placeholder="Enter Room ID"
+            placeholder="Room ID"
             value={inputRoomId}
             onChange={(e) => setInputRoomId(e.target.value)}
           />
           <button onClick={handleJoinRoom}>Join Room</button>
-        </div>
+        </>
       )}
     </div>
   );
+};
+
+const cardRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+  gap: '10px',
+};
+
+const cardStyle: React.CSSProperties = {
+  border: '1px solid black',
+  padding: '10px',
+  cursor: 'pointer',
+  color: 'white',
+  minWidth: '80px',
+  fontWeight: 'bold',
+  borderRadius: '8px',
 };
 
 export default GameRoom;

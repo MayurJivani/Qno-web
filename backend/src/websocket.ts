@@ -76,16 +76,23 @@ const joinRoom = (ws: WebSocket, roomId: string) => {
 		return;
 	}
 	const playerId = uuidv4();
-	playerMap.set(ws, { roomId, playerId });
-
 	// Check if room is not full and game hasn't started yet
 	if (room.players.size < 4 && (room.status == GameRoomStatus.NOT_STARTED)) {
+		playerMap.set(ws, { roomId, playerId });
 		const newPlayer: Player = new Player(playerId, ws);
 		//addPlayer() function implicitly sends 'JOINED_ROOM' message to client
 		room.addPlayer(newPlayer, playerMap)
+		room.broadcast({ type: 'ROOM_JOINED', playerId: playerId});
 		console.log(`[ROOM_JOINED] Player: ${playerId} has joined room: ${roomId}`);
 	} else {
-		ws.send(JSON.stringify({ type: 'ERROR', message: 'Room is full or game has already started' }));
+		if (room.status !== GameRoomStatus.NOT_STARTED) {
+			ws.send(JSON.stringify({ type: 'ERROR', message: 'Cannot join. Game has already started.' }));
+			return;
+		}
+		if (room.players.size >= 4) {
+			ws.send(JSON.stringify({ type: 'ERROR', message: 'Room is full.' }));
+			return;
+		}	
 	}
 };
 
@@ -168,6 +175,7 @@ const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {
 	//Check if the person starting the game is the host of the gameRoom
 	if (playerId === room.host.id && room.allPlayersReady()) {
 		console.log(`[START_GAME] Starting game in room: ${roomId}.`);
+		room.status = GameRoomStatus.ACTIVE;
 		room.broadcast({ type: 'START_GAME', roomId: roomId, drawPile: room.drawPile });
 		dealCards(room);
 	}

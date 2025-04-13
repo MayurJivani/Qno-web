@@ -1,4 +1,4 @@
 export interface CardFace {
     colour: string;
-    number: string;
+    value: string;
 }

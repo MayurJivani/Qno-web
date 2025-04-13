@@ -30,7 +30,8 @@ export class WebSockTestClient {
 
         return new Promise((resolve, reject) => {
             const interval = setInterval(() => {
-                const index = this.messageQueue.findIndex((msg) => msg.type === type);
+                const reversedIndex = [...this.messageQueue].reverse().findIndex(msg => msg.type === type);
+                const index = reversedIndex === -1 ? -1 : this.messageQueue.length - 1 - reversedIndex;
                 if (index !== -1) {
                     const [msg] = this.messageQueue.splice(index, 1);
                     clearInterval(interval);

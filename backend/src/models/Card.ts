@@ -8,12 +8,4 @@ export class Card {
         this.lightSide = lightSide;
         this.darkSide = darkSide;
     }
-
-    getActiveFace(isLightSideUp: boolean): CardFace {
-        return isLightSideUp ? this.lightSide : this.darkSide;
-    }
-
-    getInactiveFace(isLightSideUp: boolean): CardFace {
-        return isLightSideUp ? this.darkSide : this.lightSide;
-    }
 }

@@ -1,5 +1,5 @@
 export enum Status {
     NOT_STARTED = "NOT_STARTED",
-    ACTIVE = "ACTIVE",
+    IN_PROGRESS = "IN_PROGRESS",
     PAUSED = "PAUSED"
 }

@@ -40,7 +40,7 @@ test("player disconnects and is removed from room", async () => {
 
     const playerLeftMsg = await player1.waitFor('PLAYER_LEFT');
     expect(playerLeftMsg.type).toBe('PLAYER_LEFT');
-    expect(playerLeftMsg.playerID).toBe(player2Id);
+    expect(playerLeftMsg.playerId).toBe(player2Id);
 
     player1.close();
     player2.close();

@@ -1,8 +1,7 @@
 import http from 'http';
 import { setupWebSocket } from '../../websocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
-import { Card } from '../../models/Card';
-import { CardFace } from '../../enums/cards/CardFace';
+import { CardUtils } from '../../utils/CardUtils';
 
 let server: http.Server;
 let port: number;
@@ -46,10 +45,11 @@ test('Each player should receive correct hand and opponent hand', async () => {
     player1.send({ type: 'START_GAME', roomId, playerId: player1Id });
 
     const [start1, start2] = await Promise.all([
-        player1.waitFor('START_GAME'),
-        player2.waitFor('START_GAME'),
+        player1.waitFor('GAME_STARTED'),
+        player2.waitFor('GAME_STARTED'),
     ]);
 
+    // Get player hands
     const [yourHandP1, oppHandP1] = await Promise.all([
         player1.waitFor('YOUR_HAND'),
         player1.waitFor('OPPONENT_HAND'),
@@ -62,21 +62,23 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
     const originalNoOfCards: number = yourHandP1.hand.length;
 
+    // Draw card from draw pile
     player1.send({ type: 'DRAW_CARD', roomId: roomId, playerId: player1Id });
-    const [serverAcknowledgement, player1drew] = await Promise.all([
+    const [serverAcknowledgement, player1drew, drawPileTopP1, drawPileTopP2, nextPlayerP1, nextPlayerP2] = await Promise.all([
         player1.waitFor('CARD_DRAWN'),
-        player2.waitFor('OPPONENT_DREW_CARD')
+        player2.waitFor('OPPONENT_DREW_CARD'),
+        player1.waitFor('DISCARD_PILE_TOP'),
+        player2.waitFor('DISCARD_PILE_TOP'),
+        player1.waitFor('TURN_CHANGED'),
+        player2.waitFor('TURN_CHANGED')
     ])
-
-    const lightSide: CardFace = serverAcknowledgement.card.lightSide;
-    const darkSide: CardFace = serverAcknowledgement.card.darkSide;
-    const cardDrawn: Card = new Card(lightSide, darkSide);
 
     // Cleanup
     player1.close();
     player2.close();
 
     // Assertions
-    expect(cardDrawn.getInactiveFace(true)).toEqual(player1drew.card);
-    expect(serverAcknowledgement.hand.length).toEqual(originalNoOfCards + 1);
+    expect(CardUtils.getInactiveFace(serverAcknowledgement.card, true)).toEqual(player1drew.card);
+    expect(drawPileTopP1.card).toEqual(drawPileTopP2.card);
+    expect(nextPlayerP1).toEqual(nextPlayerP2)
 });

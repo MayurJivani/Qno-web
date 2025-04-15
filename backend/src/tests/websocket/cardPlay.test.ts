@@ -3,6 +3,7 @@ import { setupWebSocket } from '../../websocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
 import { Card } from '../../models/Card';
 import { CardFace } from '../../enums/cards/CardFace';
+import { CardUtils } from '../../utils/CardUtils';
 
 let server: http.Server;
 let port: number;
@@ -46,24 +47,49 @@ test('Each player should receive correct hand and opponent hand', async () => {
     player1.send({ type: 'START_GAME', roomId, playerId: player1Id });
 
     const [start1, start2] = await Promise.all([
-        player1.waitFor('START_GAME'),
-        player2.waitFor('START_GAME'),
+        player1.waitFor('GAME_STARTED'),
+        player2.waitFor('GAME_STARTED'),
     ]);
 
-    const [yourHandP1, oppHandP1] = await Promise.all([
+    // Get each players hands
+    const [yourHandP1, oppHandP1, discardPileTopP1] = await Promise.all([
         player1.waitFor('YOUR_HAND'),
         player1.waitFor('OPPONENT_HAND'),
+        player1.waitFor('DISCARD_PILE_TOP')
     ]);
 
-    const [yourHandP2, oppHandP2] = await Promise.all([
+    const [yourHandP2, oppHandP2, discardPileTopP2] = await Promise.all([
         player2.waitFor('YOUR_HAND'),
         player2.waitFor('OPPONENT_HAND'),
+        player2.waitFor('DISCARD_PILE_TOP')
     ]);
 
-    player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: yourHandP1.hand[0] });
-    const [serverAcknowledgement, player1played] = await Promise.all([
+    const P1ActiveFaces: CardFace[] = [];
+    yourHandP2.hand.forEach((card: Card) => {
+        const activeCardFace = CardUtils.getActiveFace(card, true);
+        P1ActiveFaces.push(activeCardFace);
+    })
+
+    const cardOnTopOfDiscardPile = discardPileTopP1.card;
+    let playCard: Card | undefined;
+    for (const card of yourHandP1.hand) {
+
+        const activeCardFace = CardUtils.getActiveFace(card, true);
+
+        //Search for a valid card to play
+        if (activeCardFace.colour === cardOnTopOfDiscardPile.colour || activeCardFace.value === cardOnTopOfDiscardPile.value) {
+            playCard = card;
+            break;
+        }
+    }
+
+    // Play card
+    player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: playCard });
+    const [serverAcknowledgement, player1played, nextPlayerP1, nextPlayerP2] = await Promise.all([
         player1.waitFor('PLAYED_CARD'),
-        player2.waitFor('OPPONENT_PLAYED_CARD')
+        player2.waitFor('OPPONENT_PLAYED_CARD'),
+        player1.waitFor('TURN_CHANGED'),
+        player2.waitFor('TURN_CHANGED')
     ])
 
     // Cleanup
@@ -73,5 +99,6 @@ test('Each player should receive correct hand and opponent hand', async () => {
     // Assertions
     expect(serverAcknowledgement.cardFacePlayed).toEqual(player1played.cardFacePlayed);
     expect(serverAcknowledgement.playerId).toEqual(player1played.opponentId);
+    expect(nextPlayerP1.currentPlayer).toEqual(nextPlayerP2.currentPlayer);
 
 });

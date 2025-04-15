@@ -32,9 +32,13 @@ test("WebSocket server should allow player to join a room and respond with JOINE
 
     player2.send({ type: 'JOIN_ROOM', roomId });
     const joinedRoomMsg = await player2.waitFor('JOINED_ROOM');
+    const joinedRoomMsgBroadcast = await player1.waitFor('NEW_PLAYER_JOINED')
 
     expect(joinedRoomMsg.type).toBe('JOINED_ROOM');
     expect(joinedRoomMsg.roomId).toBe(roomId);
+    expect(joinedRoomMsgBroadcast.type).toBe('NEW_PLAYER_JOINED');
+    expect(joinedRoomMsgBroadcast.roomId).toBe(roomId);
+    expect(joinedRoomMsgBroadcast.playerId).toBe(joinedRoomMsg.playerId);
 
     player1.close();
     player2.close();

@@ -291,12 +291,22 @@ const cardRowStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   border: '1px solid black',
-  padding: '10px',
-  cursor: 'pointer',
-  color: 'white',
-  minWidth: '80px',
-  fontWeight: 'bold',
+  padding: '20px',
+  width: '60px',
+  height: '90px',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
   borderRadius: '8px',
+  fontSize: '20px',
+  fontWeight: 'bold',
+  color: 'white',
+  cursor: 'pointer',
+  userSelect: 'none',
+  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+  transition: 'transform 0.2s',
 };
+
+
 
 export default GameRoom;

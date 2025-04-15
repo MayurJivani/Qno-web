@@ -1,11 +1,11 @@
-import { generateDrawPile } from "../../drawPile";
+import { DrawPileManager } from "../../DrawPileManager";
 
 describe("Deck Generation", () => {
     it("should generate a valid deck", () => {
-        generateDrawPile();
+        const drawPileManager: DrawPileManager = new DrawPileManager();
 
         //Parse the exported deck JSON
-        const deckObject = JSON.parse(JSON.stringify({ "drawPile": generateDrawPile() }));
+        const deckObject = JSON.parse(JSON.stringify({ "drawPile": drawPileManager.getRawDrawPile() }));
         expect(deckObject).toHaveProperty("drawPile");
         expect(deckObject.drawPile.length).toEqual(108);
 

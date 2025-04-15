@@ -3,6 +3,7 @@ import { setupWebSocket } from '../../websocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
 import { Card } from '../../models/Card';
 import { CardFace } from '../../enums/cards/CardFace';
+import { CardUtils } from '../../utils/CardUtils';
 
 let server: http.Server;
 let port: number;
@@ -46,18 +47,22 @@ test('Each player should receive correct hand and opponent hand', async () => {
     player1.send({ type: 'START_GAME', roomId, playerId: player1Id });
 
     const [start1, start2] = await Promise.all([
-        player1.waitFor('START_GAME'),
-        player2.waitFor('START_GAME'),
+        player1.waitFor('GAME_STARTED'),
+        player2.waitFor('GAME_STARTED'),
     ]);
 
-    const [yourHandP1, oppHandP1] = await Promise.all([
+    const [yourHandP1, oppHandP1, drawPileTopP1, discardPileTopP1] = await Promise.all([
         player1.waitFor('YOUR_HAND'),
         player1.waitFor('OPPONENT_HAND'),
+        player1.waitFor('DRAW_PILE_TOP'),
+        player1.waitFor('DISCARD_PILE_TOP')
     ]);
 
-    const [yourHandP2, oppHandP2] = await Promise.all([
+    const [yourHandP2, oppHandP2, drawPileTopP2, discardPileTopP2] = await Promise.all([
         player2.waitFor('YOUR_HAND'),
         player2.waitFor('OPPONENT_HAND'),
+        player2.waitFor('DRAW_PILE_TOP'),
+        player2.waitFor('DISCARD_PILE_TOP')
     ]);
 
     // Cleanup
@@ -69,24 +74,18 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
     const P1FacesVisible: CardFace[] = [];
     yourHandP2.hand.forEach((card: Card) => {
-        const lightSide: CardFace = card.lightSide;
-        const darkSide: CardFace = card.darkSide;
-        const cardObject: Card = new Card(lightSide, darkSide);
-
-        const inactiveCardFace = cardObject.getInactiveFace(true);
+        const inactiveCardFace = CardUtils.getInactiveFace(card, true);
         P1FacesVisible.push(inactiveCardFace);
     })
 
     const P2FacesVisible: CardFace[] = [];
     yourHandP1.hand.forEach((card: Card) => {
-        const lightSide: CardFace = card.lightSide;
-        const darkSide: CardFace = card.darkSide;
-        const cardObject: Card = new Card(lightSide, darkSide);
-
-        const inactiveCardFace = cardObject.getInactiveFace(true);
+        const inactiveCardFace = CardUtils.getInactiveFace(card, true);
         P2FacesVisible.push(inactiveCardFace);
     })
 
     expect(Object.values(oppHandP1.opponentHands)[0]).toEqual(P1FacesVisible);
     expect(Object.values(oppHandP2.opponentHands)[0]).toEqual(P2FacesVisible);
+    expect(drawPileTopP1).toEqual(drawPileTopP2);
+    expect(discardPileTopP1).toEqual(discardPileTopP2);
 });

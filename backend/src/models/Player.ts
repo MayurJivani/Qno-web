@@ -26,4 +26,8 @@ export class Player {
     removeCard(card: Card) {
         this.hand = this.hand.filter(c => c !== card);
     }
+
+    markReady() {
+        this.status = PlayerStatus.READY;
+    }
 }

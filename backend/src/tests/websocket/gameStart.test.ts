@@ -46,19 +46,19 @@ test('WebSocket server should check if all players are ready before starting gam
     player1.send({ type: 'START_GAME', roomId, playerId: player1Id });
 
     const [gameStartedMsgP1, gameStartedMsgP2] = await Promise.all([
-        player1.waitFor('START_GAME'),
-        player2.waitFor('START_GAME'),
+        player1.waitFor('GAME_STARTED'),
+        player2.waitFor('GAME_STARTED'),
     ]);
 
-    expect(gameStartedMsgP1.type).toBe('START_GAME');
+    expect(gameStartedMsgP1.type).toBe('GAME_STARTED');
     expect(gameStartedMsgP1.roomId).toBe(roomId);
-    expect(gameStartedMsgP1.drawPile).toHaveLength(108);
+    expect(gameStartedMsgP1.currentPlayer).toBe(player1Id)
+    expect(gameStartedMsgP1.direction).toBe(1)
 
-    expect(gameStartedMsgP2.type).toBe('START_GAME');
+    expect(gameStartedMsgP2.type).toBe('GAME_STARTED');
     expect(gameStartedMsgP2.roomId).toBe(roomId);
-    expect(gameStartedMsgP2.drawPile).toHaveLength(108);
-
-    expect(gameStartedMsgP1.drawPile).toEqual(gameStartedMsgP2.drawPile);
+    expect(gameStartedMsgP2.currentPlayer).toBe(player1Id)
+    expect(gameStartedMsgP2.direction).toBe(1)
 
     player1.close();
     player2.close();

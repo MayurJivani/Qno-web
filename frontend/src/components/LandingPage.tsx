@@ -11,6 +11,14 @@ export default function LandingPage() {
     navigate(`/room`);
   };
 
+  const handleAboutClick = () => {
+    navigate(`/about-us`);
+  };
+
+  const handleHomeClick = () => {
+    navigate(`/about-us`);
+  };
+
   const dummyCards = [
     new Card({ colour: "Red", value: "5" }, { colour: "Pink", value: "Draw 1" }),
     new Card({ colour: "Blue", value: "6" }, { colour: "Teal", value: "Skip" }),
@@ -26,17 +34,17 @@ export default function LandingPage() {
       {/* Header */}
       <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
-          <a href="#" className="hover:underline hover:text-white">HOME</a>
-          <a href="#" className="hover:underline hover:text-white">ABOUT</a>
-          <a href="#" className="hover:underline hover:text-white">RULES</a>
+          <a href="" className="hover:underline hover:text-white" onClick={handleHomeClick}>HOME</a>
+          <a href="" className="hover:underline hover:text-white" onClick={handleAboutClick}>ABOUT</a>
+          <a href="" className="hover:underline hover:text-white">RULES</a>
         </nav>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 pt-28 sm:pt-36 px-4 max-w-6xl mx-auto">
+      <main className="relative z-10 pt-28 sm:pt-36 px-4 max-w-6xl mx-auto ">
         {/* Hero Section */}
         <section className="text-center">
-          <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold mb-6">
+          <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold mb-6 text-shadow-lg/30">
             Quantum-Based UNO Game
           </h1>
 

@@ -39,7 +39,7 @@ body {
   height: 4px;
   background-color: red;
   box-shadow: 0 0 4px red;
-  animation: moveLeft 8s linear infinite;
+  animation: moveLeft 10s linear infinite;
   image-rendering: pixelated;
 }
 
@@ -53,7 +53,7 @@ body {
     opacity: 0.7;
   }
   80% {
-    transform: translateX(10vw);
+    transform: translateX(20vw);
     opacity: 0.8;
   }
   100% {

@@ -17,7 +17,7 @@ const MovingDotsBackground = () => {
 
     const COLORS = ['#ff0044', '#ffdd00', '#A2D729', '#FC5A2E', '#448aff','#00A89A','#F433AB','#82298F'];
     
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 250; i++) {
       const dot = document.createElement('div');
       dot.className = 'dot';
       const size = Math.floor(Math.random() * 3 + 3) + 'px';
@@ -27,11 +27,11 @@ const MovingDotsBackground = () => {
         width: size,
         height: size,
         backgroundColor: color,
-        boxShadow: `0 0 2px ${color}`,
+        boxShadow: `0 0 5px ${color}`,
         top: `${Math.random() * 100}%`,
         left: `${Math.random() * 100}%`,
         imageRendering: 'pixelated',
-        animation: `moveLeft ${Math.random() * 8 + 4}s linear infinite`,
+        animation: `moveLeft ${Math.random() * 8 + 6}s linear infinite`,
       });
       background.appendChild(dot);
     }

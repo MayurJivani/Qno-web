@@ -1,7 +1,7 @@
 // classes/Card.ts
 export interface Side {
     colour: string;
-    number: string;
+    value: string;
   }
   
   export class Card {

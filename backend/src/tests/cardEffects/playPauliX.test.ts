@@ -1,9 +1,10 @@
 import http from 'http';
+import { ActionCards } from '../../enums/cards/ActionCards';
+import { Colours } from '../../enums/cards/Colours';
+import { Card } from '../../models/Card';
 import { setupWebSocket } from '../../scripts/WebSocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
-import { Card } from '../../models/Card';
 import { CardFace } from '../../enums/cards/CardFace';
-import { CardUtils } from '../../utils/CardUtils';
 
 let server: http.Server;
 let port: number;
@@ -64,32 +65,19 @@ test('Each player should receive correct hand and opponent hand', async () => {
         player2.waitFor('DISCARD_PILE_TOP')
     ]);
 
-    const P1ActiveFaces: CardFace[] = [];
-    yourHandP2.hand.forEach((card: Card) => {
-        const activeCardFace = CardUtils.getActiveFace(card, true);
-        P1ActiveFaces.push(activeCardFace);
-    })
 
-    const cardOnTopOfDiscardPile = discardPileTopP1.card;
-    let playCard: Card | undefined;
-    for (const card of yourHandP1.hand) {
-
-        const activeCardFace = CardUtils.getActiveFace(card, true);
-
-        //Search for a valid card to play
-        if (activeCardFace.colour === cardOnTopOfDiscardPile.colour || activeCardFace.value === cardOnTopOfDiscardPile.value) {
-            playCard = card;
-            break;
-        }
-    }
+    const cardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
+    let playCard: Card = new Card({ colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
 
     // Play card
     player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: playCard });
-    const [serverAcknowledgement, player1played, nextPlayerP1, nextPlayerP2] = await Promise.all([
+    const [serverAcknowledgement, player1played, nextPlayerP1, nextPlayerP2, cardEffectP1, cardEffectP2] = await Promise.all([
         player1.waitFor('PLAYED_CARD'),
         player2.waitFor('OPPONENT_PLAYED_CARD'),
         player1.waitFor('TURN_CHANGED'),
-        player2.waitFor('TURN_CHANGED')
+        player2.waitFor('TURN_CHANGED'),
+        player1.waitFor('CARD_EFFECT'),
+        player2.waitFor('CARD_EFFECT')
     ])
 
     // Cleanup
@@ -97,8 +85,9 @@ test('Each player should receive correct hand and opponent hand', async () => {
     player2.close();
 
     // Assertions
-    expect(serverAcknowledgement.cardFacePlayed).toEqual(player1played.cardFacePlayed);
+    expect(serverAcknowledgement.card).toEqual(player1played.card);
     expect(serverAcknowledgement.playerId).toEqual(player1played.opponentId);
     expect(nextPlayerP1.currentPlayer).toEqual(nextPlayerP2.currentPlayer);
-
+    expect(cardEffectP1.effect).toEqual(cardEffectP2.effect);
+    expect(cardEffectP1.isLightSideActive).toEqual(cardEffectP2.isLightSideActive);
 });

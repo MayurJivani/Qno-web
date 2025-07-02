@@ -1,5 +1,5 @@
 import http from 'http';
-import { setupWebSocket } from '../../websocket';
+import { setupWebSocket } from '../../scripts/WebSocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient'; // Adjust the import path as needed
 
 let server: http.Server;

@@ -1,4 +1,4 @@
-import { Direction } from "./enums/gameRoom/Direction";
+import { Direction } from "../enums/gameRoom/Direction";
 
 export class TurnManager {
     private playerIds: string[];
@@ -21,7 +21,7 @@ export class TurnManager {
 
     reverseDirection(): void {
         this.direction = this.direction === Direction.Clockwise
-            ? Direction.CounterClockwise
+            ? Direction.AntiClockwise
             : Direction.Clockwise;
     }
 

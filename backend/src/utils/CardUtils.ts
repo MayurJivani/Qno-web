@@ -5,12 +5,12 @@ import { Card } from "../models/Card";
 export class CardUtils {
     static lightSideActionCards: string[] = [
         ActionCards.Light.Pauli_X,
-        ActionCards.Light.Pauli_Z,
+        ActionCards.Light.Teleportation,
     ];
 
     static darkSideActionCards: string[] = [
         ActionCards.Dark.Pauli_Y,
-        ActionCards.Dark.Teleportation,
+        ActionCards.Dark.Pauli_Z,
     ];
 
     static lightSideWildCards: string[] = [
@@ -50,5 +50,9 @@ export class CardUtils {
     //inactive means the card face that is currently not in play
     static getInactiveFace(card: Card, isLightSideUp: boolean): CardFace {
         return isLightSideUp ? card.darkSide : card.lightSide;
+    }
+
+    static getInactiveFaceWithId(card: Card, isLightSideUp: boolean): Card {
+        return isLightSideUp ? { id: card.id, darkSide: card.darkSide, lightSide: { colour: "", value: "" } } : { id: card.id, lightSide: card.lightSide, darkSide: { colour: "", value: "" } }
     }
 }

@@ -1,30 +1,35 @@
 import { Status as PlayerStatus } from "../enums/player/Status";
 import { Card } from "./Card";
 import WebSocket from 'ws';
+import { Hand } from "./Hand";
 
 export class Player {
     id: string;
     socket: WebSocket;
     status: PlayerStatus;
-    hand: Card[];
+    private hand: Hand;
 
     constructor(id: string, socket: WebSocket) {
         this.id = id;
         this.socket = socket;
         this.status = PlayerStatus.NOT_READY;
-        this.hand = [];
+        this.hand = new Hand();
+    }
+
+    getHand(): Hand {
+        return this.hand;
+    }
+
+    getHandCards(): Card[] {
+        return this.hand.getCards();
+    }
+
+    setHandCards(hand: Card[]) {
+        this.hand.setCards(hand);
     }
 
     sendMessage(message: any) {
         this.socket.send(JSON.stringify(message));
-    }
-
-    addCard(card: Card) {
-        this.hand.push(card);
-    }
-
-    removeCard(card: Card) {
-        this.hand = this.hand.filter(c => c !== card);
     }
 
     markReady() {

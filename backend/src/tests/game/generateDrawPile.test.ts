@@ -1,4 +1,4 @@
-import { DrawPileManager } from "../../DrawPileManager";
+import { DrawPileManager } from "../../scripts/DrawPileManager";
 
 describe("Deck Generation", () => {
     it("should generate a valid deck", () => {

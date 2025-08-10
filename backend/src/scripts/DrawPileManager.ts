@@ -1,9 +1,9 @@
-import { Card } from "./models/Card";
-import { CardFace } from "./enums/cards/CardFace";
-import { Colours } from "./enums/cards/Colours";
-import { ActionCards } from "./enums/cards/ActionCards";
-import { GameRoom } from "./models/GameRoom";
-import { CardUtils } from "./utils/CardUtils";
+import { Card } from "../models/Card";
+import { CardFace } from "../enums/cards/CardFace";
+import { Colours } from "../enums/cards/Colours";
+import { ActionCards } from "../enums/cards/ActionCards";
+import { GameRoom } from "../models/GameRoom";
+import { CardUtils } from "../utils/CardUtils";
 
 export class DrawPileManager {
 	private drawPile: Card[] = [];
@@ -20,7 +20,7 @@ export class DrawPileManager {
 	];
 	private static lightSideActionCards: string[] = [
 		ActionCards.Light.Pauli_X,
-		ActionCards.Light.Pauli_Z,
+		ActionCards.Light.Teleportation,
 	];
 	private static darkSideColours: string[] = [
 		Colours.Dark.Orange,
@@ -30,7 +30,7 @@ export class DrawPileManager {
 	];
 	private static darkSideActionCards: string[] = [
 		ActionCards.Dark.Pauli_Y,
-		ActionCards.Dark.Teleportation,
+		ActionCards.Dark.Pauli_Z,
 	];
 
 	private static addCardFace(cardFacesList: CardFace[], colour: string, value: string): void {
@@ -55,7 +55,7 @@ export class DrawPileManager {
 		const minLength = Math.min(light.length, dark.length);
 
 		for (let i = 0; i < minLength; i++) {
-			this.drawPile.push(new Card(light[i], dark[i]));
+			this.drawPile.push(new Card(i, light[i], dark[i]));
 		}
 
 		DrawPileManager.shuffle(this.drawPile);

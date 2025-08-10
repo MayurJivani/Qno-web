@@ -15,7 +15,12 @@
     "gameStartTest": "jest tests/websocket/gameStart.test.ts",
     "dealCardsTest": "jest tests/websocket/dealCards.test.ts",
     "cardPlayTest": "jest tests/websocket/cardPlay.test.ts",
-    "drawCardTest": "jest tests/websocket/drawCard.test.ts"
+    "drawCardTest": "jest tests/websocket/drawCard.test.ts",
+    "playPauliXTest": "jest tests/cardEffects/playPauliX.test.ts",
+    "playPauliYTest": "jest tests/cardEffects/playPauliY.test.ts",
+    "playPauliZTest": "jest tests/cardEffects/playPauliZ.test.ts",
+    "playMeasurementTest": "jest tests/cardEffects/playMeasurement.test.ts",
+    "playSuperpositionAndMeasurementTest": "jest tests/cardEffects/playSuperpositionAndMeasurement.test.ts"
   },
   "keywords": [],
   "author": "",

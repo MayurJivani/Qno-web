@@ -1,7 +1,7 @@
 // app.ts
 import express from 'express';
 import http from 'http';
-import { setupWebSocket } from './websocket';
+import { setupWebSocketServer } from './scripts/WebSocket';
 
 const app = express();
 const server = http.createServer(app);
@@ -13,7 +13,7 @@ app.get('/', (req, res) => {
 });
 
 // Initialize WebSocket server
-setupWebSocket(server);
+setupWebSocketServer(server);
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

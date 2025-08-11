@@ -7,6 +7,7 @@ import { Player } from "../models/Player";
 import { CardUtils } from "../utils/CardUtils";
 import { Logger } from "../utils/Logger";
 import { ActionCards } from "../enums/cards/ActionCards";
+import { StoCEvents } from "../enums/events/ServerToClient";
 
 export class GameManager {
     public static startGame(room: GameRoom): void {
@@ -25,9 +26,9 @@ export class GameManager {
         room.startTurnManager();
 
         room.broadcast({
-            type: "GAME_STARTED",
+            type: StoCEvents.GAME_STARTED,
             roomId: room.id,
-            currentPlayer: room.getCurrentPlayerId(),
+            currentPlayer: room.getCurrentPlayerId()!,
             direction: room.turnManager!.getDirection(),
         });
 
@@ -61,12 +62,12 @@ export class GameManager {
 
             // Each player sees complete information about their hand (along with id of the cards)
             p.sendMessage({
-                type: 'YOUR_HAND',
+                type: StoCEvents.YOUR_HAND,
                 hand: p.getHand()
             });
 
             p.sendMessage({
-                type: 'OPPONENT_HAND',
+                type: StoCEvents.OPPONENT_HAND,
                 opponentHands: opponentPlayersHands
             });
         });
@@ -82,7 +83,7 @@ export class GameManager {
             const effectType = CardUtils.isActionCard(cardFacePlayed) ? cardFacePlayed.value : undefined;
 
             player.sendMessage({
-                type: 'PLAYED_CARD',
+                type: StoCEvents.PLAYED_CARD,
                 card: cardFacePlayed,
                 playerId: player.id,
                 effect: effectType
@@ -90,27 +91,27 @@ export class GameManager {
 
             // Send the card played by the player to the opponents
             room.broadcast({
-                type: 'OPPONENT_PLAYED_CARD',
+                type: StoCEvents.OPPONENT_PLAYED_CARD,
                 card: cardFacePlayed,
                 opponentId: player.id, // Pass the playerId of the person who drew the card
                 effect: effectType
             }, [player.id])
 
-            Logger.info("PLAYED_CARD", ` Player: ${player.id} played a ${cardFacePlayed.colour} ${cardFacePlayed.value} card in room: ${room.id}.`);
+            Logger.info(StoCEvents.PLAYED_CARD, ` Player: ${player.id} played a ${cardFacePlayed.colour} ${cardFacePlayed.value} card in room: ${room.id}.`);
 
             // Teleportation card is handled separately
             if (cardFacePlayed.value == ActionCards.Light.Teleportation) {
-                CardEffectEngine.handleCardEffect(card, room);
+                CardEffectEngine.handleTeleportation(room)
                 return;
             }
+            const currentCardOnTopOfDrawPile =  room.drawPileManager.getTopCard(room.isLightSideActive)!;
             const effectResult = CardEffectEngine.handleCardEffect(card, room);
-
-            GameManager.handleRoomUpdate(room, effectResult);
+            GameManager.handleRoomUpdate(room, effectResult, currentCardOnTopOfDrawPile);
         }
         else {
             Logger.error(` Player: ${player.id} tried to play an invalid card (${cardFacePlayed.colour} ${cardFacePlayed.value}) in room: ${room.id}.`);
             player.sendMessage({
-                type: 'ERROR',
+                type: StoCEvents.ERROR,
                 message: 'Invalid move. Cannot play this card.'
             })
             return;
@@ -122,8 +123,8 @@ export class GameManager {
         GameManager.handleRoomUpdate(room, effectResult)
     }
 
-    private static handleRoomUpdate(room: GameRoom, effectResult: { advanceTurn: boolean }) {
-        const currentCardOnTopOfDrawPile: Card = room.drawPileManager.getTopCard(room.isLightSideActive)!;
+    private static handleRoomUpdate(room: GameRoom, effectResult: { advanceTurn: boolean }, oldCardOnTopOfDrawPile?: Card) {
+
         if (effectResult.advanceTurn) {
             this.advanceTurn(room);
         }
@@ -131,8 +132,10 @@ export class GameManager {
         const newCardOnTopOfDrawPile: Card = room.drawPileManager.getTopCard(room.isLightSideActive)!;
 
         // If the card on top of draw pile is now different, send the new card on top of draw pile
-        if (!CardUtils.areCardsEqual(newCardOnTopOfDrawPile, currentCardOnTopOfDrawPile)) {
-            room.broadcastTopOfDrawPile();
+        if(oldCardOnTopOfDrawPile) {
+            if (!CardUtils.areCardsEqual(newCardOnTopOfDrawPile, oldCardOnTopOfDrawPile)) {
+                room.broadcastTopOfDrawPile();
+            }
         }
         // Send the new card on top of discard pile
         room.broadcastTopOfDiscardPile();
@@ -140,7 +143,7 @@ export class GameManager {
 
     public static drawCard(room: GameRoom, player: Player) {
         if (!room.drawPileManager.getRemainingCardCount()) {
-            player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
+            player.sendMessage({ type: StoCEvents.ERROR, message: 'No cards left in the deck' });
             return;
         }
 
@@ -148,23 +151,24 @@ export class GameManager {
         let turnChangeHandled: boolean = false;
         player.getHand().addCard(cardDrawn);
         let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
-        Logger.info("CARD_DRAWN", `Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card in room: ${room.id}.`);
-        // If the card drawn can be played, play it forcefully
+        Logger.info(StoCEvents.CARD_DRAWN, `Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card in room: ${room.id}.`);
+        //TODO: If the card drawn can be played, give an option whether to play the card or not
         if (CardEffectEngine.checkValidMove(cardDrawn, room)) {
+            // player.sendMessage({type: ''})
             this.playCard(room, player, cardDrawn);
             turnChangeHandled = true;
         }
 
         // Send the card drawn to the current player along with their updated hand
         player.sendMessage({
-            type: 'CARD_DRAWN',
+            type: StoCEvents.CARD_DRAWN,
             card: cardDrawn,
             hand: player.getHandCards()
         });
 
         // Send the card drawn by the player to the opponents
         room.broadcast({
-            type: 'OPPONENT_DREW_CARD',
+            type: StoCEvents.OPPONENT_DREW_CARD,
             card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
             opponentId: player.id // Pass the playerId of the person who drew the card
         }, [player.id]);
@@ -182,6 +186,6 @@ export class GameManager {
     private static advanceTurn(room: GameRoom): void {
         if (!room.turnManager) return;
         const nextPlayer = room.turnManager.advanceTurn();
-        room.broadcast({ type: 'TURN_CHANGED', currentPlayer: nextPlayer });
+        room.broadcast({ type: StoCEvents.TURN_CHANGED, currentPlayer: nextPlayer });
     }
 }

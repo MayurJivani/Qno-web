@@ -1,5 +1,5 @@
 import http from 'http';
-import { setupWebSocket } from '../../scripts/WebSocket';
+import { setupWebSocketServer } from '../../scripts/WebSocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
 import { CardUtils } from '../../utils/CardUtils';
 
@@ -8,7 +8,7 @@ let port: number;
 
 beforeAll((done) => {
     server = http.createServer();
-    setupWebSocket(server);
+    setupWebSocketServer(server);
     server.listen(() => {
         port = (server.address() as any).port;
         done();

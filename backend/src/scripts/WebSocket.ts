@@ -173,7 +173,7 @@ const handleTeleportationSelection = (ws: WebSocket, roomId: string, playerId: s
 	const result = checkValidity(roomId, playerId);
 	if (!result) return;
 	const { room, player } = result;
-	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, card)
+	GameManager.handleTeleportation(room, player, fromPlayerId, card)
 }
 
 const sendGameState = (ws: WebSocket) => {

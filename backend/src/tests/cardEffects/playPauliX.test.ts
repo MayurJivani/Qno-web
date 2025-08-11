@@ -2,7 +2,7 @@ import http from 'http';
 import { ActionCards } from '../../enums/cards/ActionCards';
 import { Colours } from '../../enums/cards/Colours';
 import { Card } from '../../models/Card';
-import { setupWebSocket } from '../../scripts/WebSocket';
+import { setupWebSocketServer } from '../../scripts/WebSocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient';
 import { CardFace } from '../../enums/cards/CardFace';
 
@@ -11,7 +11,7 @@ let port: number;
 
 beforeAll((done) => {
     server = http.createServer();
-    setupWebSocket(server);
+    setupWebSocketServer(server);
     server.listen(() => {
         port = (server.address() as any).port;
         done();
@@ -67,7 +67,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
 
     const cardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
-    let playCard: Card = new Card({ colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
+    let playCard: Card = new Card(10, { colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
 
     // Play card
     player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: playCard });

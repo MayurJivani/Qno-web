@@ -17,3 +17,5 @@ export namespace ActionCards {
         Measurement = "Measurement"
     }
 }
+
+// TODO: Refactor all enums into const objects

@@ -1,6 +1,10 @@
+import WebSocket from "ws";
+import {
+    ServerToClientEvents,
+    ServerToClientMessage
+} from "../enums/events/ServerToClient";
 import { Status as PlayerStatus } from "../enums/player/Status";
 import { Card } from "./Card";
-import WebSocket from 'ws';
 import { Hand } from "./Hand";
 
 export class Player {
@@ -28,7 +32,9 @@ export class Player {
         this.hand.setCards(hand);
     }
 
-    sendMessage(message: any) {
+    sendMessage<T extends ServerToClientEvents>(
+        message: ServerToClientMessage<T>
+    ) {
         this.socket.send(JSON.stringify(message));
     }
 

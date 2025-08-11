@@ -32,7 +32,7 @@ export class CardEffectEngine {
                 this.handlePauliZ(cardFace, room);
                 break;
             case ActionCards.Light.Teleportation:
-                this.handleTeleportation(cardFace, room);
+                this.handleTeleportation(room);
                 break;
             case ActionCards.WildCard.Measurement:
                 this.handleMeasurement(cardFace, room);
@@ -115,7 +115,7 @@ export class CardEffectEngine {
         });
     }
 
-    private static handleTeleportation(cardFace: CardFace, room: GameRoom) {
+    public static handleTeleportation(room: GameRoom) {
 
         const currentPlayer: Player | undefined = room.getCurrentPlayer();
         if (!currentPlayer) return;
@@ -148,6 +148,8 @@ export class CardEffectEngine {
             type: 'AWAITING_TELEPORTATION_TARGET',
             message: 'Select a card from an opponent to teleport into your hand.',
         });
+
+        // TODO: Figure out what the rest of the players should see while the active player is selecting a card to teleport
     }
 
     // 'player' is the current player who played the teleportation card and 'fromPlayerId' is the id of the player from whose hand the card has been teleported
@@ -197,9 +199,9 @@ export class CardEffectEngine {
             }
         })
 
-        let cardTeleportedActiceFace = CardUtils.getActiveFace(cardSelected, room.isLightSideActive);
+        let cardTeleportedActiveFace = CardUtils.getActiveFace(cardSelected, room.isLightSideActive);
 
-        Logger.info("TELEPORTATION", `Player ${player.id} teleported card ${cardTeleportedActiceFace.colour} ${cardTeleportedActiceFace.value} from player: ${fromPlayerId} in room: ${room.id}`);
+        Logger.info("TELEPORTATION", `Player ${player.id} teleported card ${cardTeleportedActiveFace.colour} ${cardTeleportedActiveFace.value} with id: ${cardSelected.id} from player: ${fromPlayerId} in room: ${room.id}`);
 
         // Mark teleportation as completed
         room.teleportationState = { awaitingPlayerId: room.teleportationState.awaitingPlayerId, status: 'COMPLETED' };
@@ -213,12 +215,12 @@ export class CardEffectEngine {
         const cardPlayedBeforeMeasurementCard: Card = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive)!;
         let measuredCard: Card;
         if (CardUtils.getActiveFace(cardPlayedBeforeMeasurementCard, room.isLightSideActive).value == ActionCards.WildCard.Superposition) {
-            const superpositionCollapsedIntoCard: Card = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive)!;
-            measuredCard = superpositionCollapsedIntoCard;
-            room.discardPileManager.addCardOnTop(superpositionCollapsedIntoCard, room.isLightSideActive);
+            const cardThatSuperpositionCollapsedInto: Card = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive)!;
+            measuredCard = cardThatSuperpositionCollapsedInto;
+            room.discardPileManager.addCardOnTop( cardThatSuperpositionCollapsedInto, room.isLightSideActive);
         } else {
             // Index 0 will be the measurement card just played, Index 1 will be the card below the measurement card. 
-            // removeCardAtIndex() takes into account if light side is active or not and respectively removes the card either from the front or back of the discard pile
+            // removeCardAtIndex() function implicitly takes into account if light side is active or not and respectively removes the card either from the front or back of the discard pile
             room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive)
             room.discardPileManager.addCardOnTop(cardPlayedBeforeMeasurementCard, room.isLightSideActive);
             measuredCard = cardPlayedBeforeMeasurementCard;
@@ -232,14 +234,17 @@ export class CardEffectEngine {
     }
 
     private static handleColourSuperposition(cardFace: CardFace, room: GameRoom) {
+        // When colour superposition is played, the first non-action card from the deck is drawn and placed on top of the discard pile.
+        // The colour of this card determines what the active colour should be.
         const newCardOnTopOfDiscardPile: Card | null = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive);
         if (newCardOnTopOfDiscardPile == null) {
             Logger.error("No non-action cards left in the draw pile");
             return;
+            // TODO: Handle this edge case. If there are no non-action cards left, the discard pile should be shuffled and should become the new draw pile. 
         }
         room.discardPileManager.addCardOnTop(newCardOnTopOfDiscardPile, room.isLightSideActive);
-        let newCardActiceFace = CardUtils.getActiveFace(newCardOnTopOfDiscardPile, room.isLightSideActive);
-        Logger.info("EFFECT", `Colour Superposition: Colour Superposition card output is ${newCardActiceFace.colour} ${newCardActiceFace.value} in room: ${room.id}`);
+        let newCardActiveFace = CardUtils.getActiveFace(newCardOnTopOfDiscardPile, room.isLightSideActive);
+        Logger.info("EFFECT", `Colour Superposition: Colour Superposition card output is ${newCardActiveFace.colour} ${newCardActiveFace.value} in room: ${room.id}`);
         room.broadcast({
             type: 'CARD_EFFECT',
             effect: cardFace.value

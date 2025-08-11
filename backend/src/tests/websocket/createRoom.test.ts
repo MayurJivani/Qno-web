@@ -1,5 +1,5 @@
 import http from 'http';
-import { setupWebSocket } from '../../scripts/WebSocket';
+import { setupWebSocketServer } from '../../scripts/WebSocket';
 import { WebSockTestClient } from '../clients/WebSocketTestClient'; // adjust path as necessary
 
 let server: http.Server;
@@ -9,7 +9,7 @@ beforeAll((done) => {
     server = http.createServer();
     server.listen(() => {
         port = (server.address() as any).port;
-        setupWebSocket(server);
+        setupWebSocketServer(server);
         done();
     });
 });

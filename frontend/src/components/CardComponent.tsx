@@ -1,5 +1,5 @@
 import React from "react";
-import { Card } from "../classes/Card";
+import { Card } from "../models/Card";
 
 interface CardComponentProps {
   card: Card;

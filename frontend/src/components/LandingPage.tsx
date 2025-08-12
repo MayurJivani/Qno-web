@@ -1,7 +1,7 @@
 // src/components/LandingPage.tsx
 import MovingDotsBackground from "./MovingDotsBackground";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../classes/Card";
+import { Card } from "../models/Card";
 import CardComponent from "./CardComponent";
 
 export default function LandingPage() {

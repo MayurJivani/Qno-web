@@ -1,52 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameSocket } from '../hooks/useGameSocket';
-import { Card, Side } from '../classes/Card';
+import { Card } from '../models/Card';
+import { CardFace } from '../enums/cards/CardFace';
+import { Hand } from '../models/Hand';
+import { ColourUtils } from '../utils/ColourUtil';
 
 interface WSMessage {
   type: string;
   [key: string]: unknown;
 }
 
-interface OpponentCard {
-  backFace: Side;
-}
-
-const COLORS = {
-  light: {
-    Blue: '#006bb5',
-    Green: '#3ba345',
-    Red: '#ec1c24',
-    Yellow: '#ffda00',
-    Black: '#010101',
-  },
-  dark: {
-    Orange: '#f8a01b',
-    Teal: '#00a89a',
-    Pink: '#eb008b',
-    Purple: '#82298f',
-    Black: '#010101',
-  },
-};
-
-const getColor = (side: Side, isLight: boolean): string =>
-  (isLight ? COLORS.light : COLORS.dark)[side.colour] ?? 'gray';
 
 const CardComponent: React.FC<{
   card: Card;
-  isLight: boolean;
+  isLightSideActive?: boolean;
   onClick?: () => void;
-}> = ({ card, isLight, onClick }) => {
-  const face = isLight ? card.lightSide : card.darkSide;
+}> = ({ card, isLightSideActive, onClick }) => {
+  let cardFaceToShow: CardFace | undefined;
+
+  if (isLightSideActive) {
+    cardFaceToShow = card.lightSide ?? card.darkSide;
+  } else {
+    cardFaceToShow = card.darkSide ?? card.lightSide;
+  }
+
+  if (!cardFaceToShow) {
+    // fallback UI if both sides are missing, or return null etc.
+    return <div className="w-16 h-24 rounded-xl bg-gray-500 flex items-center justify-center">?</div>;
+  }
+
   return (
     <div
       onClick={onClick}
       className="w-16 h-24 rounded-xl shadow-lg text-white font-bold text-sm flex items-center justify-center text-center px-1 py-1 cursor-pointer select-none transition-transform transform hover:scale-110 overflow-hidden leading-tight break-words"
-      style={{ backgroundColor: getColor(face, isLight) }}
+      style={{ backgroundColor: ColourUtils.ColourHexValues[cardFaceToShow.colour] }}
     >
-      {face.value}
+      {cardFaceToShow.value}
     </div>
   );
+
 };
+
+
 
 const GameRoom: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -56,13 +51,13 @@ const GameRoom: React.FC = () => {
   const [allReady, setAllReady] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
-  const [cardDeck, setCardDeck] = useState<Card[]>([]);
-  const [opponentDecks, setOpponentDecks] = useState<Record<string, OpponentCard[]>>({});
-  const [isLightSideUp, setIsLightSideUp] = useState(true);
+  const [myHand, setMyHand] = useState<Hand>(new Hand());
+  const [opponentDecks, setOpponentDecks] = useState<Record<string, Card[]>>({});
+  const [isLightSideActive, setIsLightSideActive] = useState(true);
   const [players, setPlayers] = useState<string[]>([]);
   const [readyPlayers, setReadyPlayers] = useState<Set<string>>(new Set());
-  const [drawTop, setDrawTop] = useState<Side | null>(null);
-  const [discardTop, setDiscardTop] = useState<Side | null>(null);
+  const [drawTop, setDrawTop] = useState<CardFace | null>(null);
+  const [discardTop, setDiscardTop] = useState<CardFace | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
 
 
@@ -78,7 +73,7 @@ const GameRoom: React.FC = () => {
     setAllReady(false);
     setIsHost(false);
     setGameStarted(false);
-    setCardDeck([]);
+    setMyHand(new Hand());
     setOpponentDecks({});
     setPlayers([]);
     setReadyPlayers(new Set());
@@ -86,8 +81,9 @@ const GameRoom: React.FC = () => {
     setDiscardTop(null);
   };
 
-  const parseCards = (raw: any[]): Card[] =>
-    raw.map((c) => new Card(c.lightSide, c.darkSide));
+  function isJoinedRoomMessage(msg: WSMessage): msg is WSMessage & { roomId: string; playerId: string } {
+    return typeof msg.roomId === 'string' && typeof msg.playerId === 'string';
+  }
 
   const handleSocketMessage = useCallback((data: WSMessage) => {
     switch (data.type) {
@@ -96,13 +92,15 @@ const GameRoom: React.FC = () => {
         break;
 
       case 'JOINED_ROOM': {
-        const { roomId, playerId } = data as { roomId: string; playerId: string };
-        setRoomId(roomId);
-        setPlayerId(playerId);
-        localStorage.setItem('roomId', roomId);
-        localStorage.setItem('playerId', playerId);
+        if (isJoinedRoomMessage(data)) {
+          setRoomId(data.roomId);
+          setPlayerId(data.playerId);
+          localStorage.setItem('roomId', data.roomId);
+          localStorage.setItem('playerId', data.playerId);
+        }
         break;
       }
+
 
       case 'NEW_PLAYER_JOINED': {
         const id = data.playerId as string;
@@ -125,27 +123,38 @@ const GameRoom: React.FC = () => {
       }
 
       case 'YOUR_HAND': {
-        const cards = (data.drawPile || data.hand) as any[];
-        if (Array.isArray(cards)) {
-          setCardDeck(parseCards(cards));
+        const handData: Card[] = (data as any).hand.cards
+        if (handData && Array.isArray(handData)) {
+          setMyHand((prev: Hand) => {
+            console.log("Hand received from backend: ", prev);
+            prev.setCards(handData);
+            return prev;
+          });
           setGameStarted(true);
         }
         break;
       }
 
       case 'OPPONENT_HAND': {
-        const hands = data.opponentHands as Record<string, any[]>;
-        const parsed: Record<string, OpponentCard[]> = {};
-        for (const [id, cards] of Object.entries(hands)) {
-          parsed[id] = cards.map(c => ({ backFace: c }));
+        const hands = data.opponentHands as Record<string, CardFace[]>;
+        const parsed: Record<string, Card[]> = {};
+
+        for (const [id, cardFaces] of Object.entries(hands)) {
+          parsed[id] = cardFaces.map(cardFace => new Card(undefined, cardFace));
         }
-        setOpponentDecks(parsed);
+
+        setOpponentDecks(parsed); // now it's Record<string, Card[]>
         break;
       }
 
+
+
       case 'CARD_DRAWN': {
-        const card = data.card as any;
-        setCardDeck(prev => [...prev, new Card(card.lightSide, card.darkSide)]);
+        const card: Card = data.card as any;
+        setMyHand((prev: Hand) => {
+          prev.addCard(card)
+          return prev;
+        });
         break;
       }
 
@@ -153,17 +162,38 @@ const GameRoom: React.FC = () => {
         const { opponentId, card } = data as any;
         setOpponentDecks(prev => ({
           ...prev,
-          [opponentId]: [...(prev[opponentId] || []), { backFace: card }]
+          [opponentId]: [
+            ...(prev[opponentId] || []),
+            new Card(undefined, card) // ✅ store as Card object, not OpponentCard
+          ]
         }));
         break;
       }
 
+      case 'PLAYED_CARD': {
+        const cardFace: CardFace = data.card as any;
+        let cardInstance: Card;
+        if(isLightSideActive) {
+          cardInstance = new Card(undefined, cardFace, undefined)
+        } else {
+          cardInstance = new Card(undefined, undefined, cardFace)
+        }
+        setMyHand(prevHand => {
+          const newHand = new Hand();
+          newHand.setCards(prevHand.getCards());  
+          newHand.removeCard(cardInstance, isLightSideActive);
+          return newHand;
+        });
+        break;
+      }
+
+
       case 'DRAW_PILE_TOP':
-        setDrawTop(data.card as Side);
+        setDrawTop(data.card as CardFace);
         break;
 
       case 'DISCARD_PILE_TOP':
-        setDiscardTop(data.card as Side);
+        setDiscardTop(data.card as CardFace);
         break;
 
       case 'LEFT_ROOM':
@@ -192,17 +222,34 @@ const GameRoom: React.FC = () => {
   };
   const handleStartGame = () => sendMessage({ type: 'START_GAME', roomId, playerId });
   const handlePlayCard = (card: Card) => {
+    console.log(myHand)
     sendMessage({ type: 'PLAY_CARD', roomId, playerId, card });
-    setCardDeck(prev => prev.filter(c => c !== card));
   };
   const handleDrawCard = () => sendMessage({ type: 'DRAW_CARD', roomId, playerId });
 
-  const renderPileCard = (label: string, side: Side | null) => (
-    side && (
+  const renderCardOnTopOfDrawPile = (cardFace: CardFace | null) => (
+    cardFace && (
       <div className="mb-4">
-        <h3 className="font-semibold">{label}</h3>
+        <h3 className="font-semibold">{'Draw Pile Top:'}</h3>
         <div className="flex justify-center">
-          <CardComponent card={new Card(side, side)} isLight={!COLORS.dark[side.colour]} />
+          <CardComponent
+            card={isLightSideActive ? new Card(undefined, undefined, cardFace) : new Card(undefined, cardFace, undefined)}
+            isLightSideActive={isLightSideActive}
+          />
+        </div>
+      </div>
+    )
+  );
+
+  const renderCardOnTopOfDiscardPile = (cardFace: CardFace | null) => (
+    cardFace && (
+      <div className="mb-4">
+        <h3 className="font-semibold">{'Discard Pile Top:'}</h3>
+        <div className="flex justify-center">
+          <CardComponent
+            card={!isLightSideActive ? new Card(undefined, undefined, cardFace) : new Card(undefined, cardFace, undefined)}
+            isLightSideActive={isLightSideActive}
+          />
         </div>
       </div>
     )
@@ -237,13 +284,13 @@ const GameRoom: React.FC = () => {
               <h2 className="text-xl mb-2 font-semibold">Game Started!</h2>
               <button
                 className="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded mb-6"
-                onClick={() => setIsLightSideUp(prev => !prev)}
+                onClick={() => setIsLightSideActive(prev => !prev)}
               >
-                Flip Cards ({isLightSideUp ? 'Light' : 'Dark'} Side Up)
+                Flip Cards ({isLightSideActive ? 'Light' : 'Dark'} cardFace Up)
               </button>
 
-              {renderPileCard('Discard Pile Top:', discardTop)}
-              {renderPileCard('Draw Pile Top:', drawTop)}
+              {renderCardOnTopOfDiscardPile(discardTop)}
+              {renderCardOnTopOfDrawPile(drawTop)}
 
               <div className="mb-8">
                 <h3 className="text-lg font-semibold">Opponent’s Cards:</h3>
@@ -257,9 +304,12 @@ const GameRoom: React.FC = () => {
                     <div className="flex flex-wrap justify-center gap-2">
                       {cards.map((card, i) => (
                         <CardComponent
-                          key={i}
-                          card={new Card(card.backFace, card.backFace)}
-                          isLight={false}
+                          key={card.id ?? i}
+                          card={card}
+                          isLightSideActive={!isLightSideActive}
+                          onClick={() => {
+                            if (playerId === currentPlayerId) handlePlayCard(card);
+                          }}
                         />
                       ))}
                     </div>
@@ -271,11 +321,11 @@ const GameRoom: React.FC = () => {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold">Your Cards:</h3>
                 <div className="flex flex-wrap justify-center gap-2">
-                  {cardDeck.map((card, i) => (
+                  {myHand.getCards().map((card, i) => (
                     <CardComponent
-                      key={i}
+                      key={card.id ?? i}
                       card={card}
-                      isLight={isLightSideUp}
+                      isLightSideActive={isLightSideActive}
                       onClick={() => {
                         if (playerId === currentPlayerId) handlePlayCard(card);
                       }}

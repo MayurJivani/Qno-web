@@ -41,6 +41,7 @@ const GameRoom: React.FC = () => {
   const [turnDirection, setTurnDirection] = useState<'clockwise' | 'anti-clockwise'>('clockwise');
   const [discardPileShake, setDiscardPileShake] = useState(false);
   const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
+  const [isFlipping, setIsFlipping] = useState(false);
 
   // Use refs for values used in callbacks to avoid dependency issues
   const isLightSideActiveRef = useRef(isLightSideActive);
@@ -113,7 +114,7 @@ const GameRoom: React.FC = () => {
 
       case 'GAME_STARTED':
       case 'TURN_CHANGED': {
-        const gameData = message as { currentPlayer?: string; direction?: number; playerNames?: Record<string, string> };
+        const gameData = message as { currentPlayer?: string; direction?: number; playerNames?: Record<string, string>; turnOrder?: string[] };
         const current = gameData.currentPlayer;
         if (typeof current === 'string') {
           setCurrentPlayerId(current);
@@ -123,6 +124,10 @@ const GameRoom: React.FC = () => {
         }
         if (gameData.playerNames) {
           setPlayerNames(gameData.playerNames);
+        }
+        if (gameData.turnOrder && Array.isArray(gameData.turnOrder)) {
+          // Use the turn order from backend to ensure correct sequence
+          setPlayers(gameData.turnOrder);
         }
         if (message.type === 'GAME_STARTED') setGameStarted(true);
         break;
@@ -144,34 +149,44 @@ const GameRoom: React.FC = () => {
       case 'OPPONENT_HAND': {
         const hands = message.opponentHands as Record<string, CardFace[]>;
         const playerNamesData = (message as { playerNames?: Record<string, string> }).playerNames;
+        const turnOrderData = (message as { turnOrder?: string[] }).turnOrder;
+        
         if (playerNamesData) {
           setPlayerNames(prev => ({ ...prev, ...playerNamesData }));
         }
         const parsed: Record<string, Card[]> = {};
 
-        // Extract all opponent IDs from the opponentHands keys
-        const opponentIds = Object.keys(hands);
-        
-        // Update players list: include all opponents + current player
-        // This ensures joined players see all existing players immediately
-        if (currentPlayerId) {
-          setPlayers(() => {
-            const allPlayers = [...opponentIds, currentPlayerId];
-            // Remove duplicates and maintain order
-            return Array.from(new Set(allPlayers));
-          });
+        // Use turn order from backend if available, otherwise fall back to opponentHands keys + current player
+        if (turnOrderData && Array.isArray(turnOrderData)) {
+          // Use the turn order from backend to ensure correct sequence
+          setPlayers(turnOrderData);
+        } else {
+          // Extract all opponent IDs from the opponentHands keys
+          const opponentIds = Object.keys(hands);
+          
+          // Update players list: include all opponents + current player
+          // This ensures joined players see all existing players immediately
+          if (currentPlayerId) {
+            setPlayers(() => {
+              const allPlayers = [...opponentIds, currentPlayerId];
+              // Remove duplicates and maintain order
+              return Array.from(new Set(allPlayers));
+            });
+          }
         }
 
         for (const [id, cardFaces] of Object.entries(hands)) {
           // Map card faces to Card objects
           // The cardFace received is the inactive face, so we need to put it in the correct side
+          // Use the current state value, not the ref (which might be stale after side flip)
+          const isLightActive = isLightSideActiveRef.current;
           parsed[id] = cardFaces.map(cardFace => {
             // If light side is active, inactive face is dark side
             // If dark side is active, inactive face is light side
-            if (currentIsLightSideActive) {
-              return new Card(undefined, undefined, cardFace); // dark side
+            if (isLightActive) {
+              return new Card(undefined, undefined, cardFace); // dark side (inactive)
             } else {
-              return new Card(undefined, cardFace, undefined); // light side
+              return new Card(undefined, cardFace, undefined); // light side (inactive)
             }
           });
         }
@@ -265,7 +280,14 @@ const GameRoom: React.FC = () => {
         
         // Handle side flip effects (Pauli X, Pauli Y)
         if (typeof effectData.isLightSideActive === 'boolean') {
+          // Update state and ref immediately so OPPONENT_HAND handler uses correct value
           setIsLightSideActive(effectData.isLightSideActive);
+          isLightSideActiveRef.current = effectData.isLightSideActive;
+          
+          // Trigger flip animation
+          setIsFlipping(true);
+          setTimeout(() => setIsFlipping(false), 600); // Match animation duration
+          
           if (effectData.effect === 'Pauli_X') {
             setEffectNotification({ message: '🔀 Side Flipped!', type: 'flip' });
             setTimeout(() => setEffectNotification(null), 2000);
@@ -478,18 +500,82 @@ const GameRoom: React.FC = () => {
     if (totalPlayers === 2) {
       return index === 0 ? 'top-center' : 'bottom-center';
     } else if (totalPlayers === 3) {
-      return index === 0 ? 'top-left' : index === 1 ? 'top-right' : 'bottom-center';
+      // For 3 players: opponents closer to center
+      return index === 0 ? 'top-left-center' : index === 1 ? 'top-right-center' : 'bottom-center';
     } else {
-      return index === 0 ? 'top-left' : index === 1 ? 'top-right' : index === 2 ? 'mid-right' : 'bottom-center';
+      // For 4 players: one on top, two on left-right sides
+      return index === 0 ? 'top-center' : index === 1 ? 'mid-left' : index === 2 ? 'mid-right' : 'bottom-center';
     }
   }, []);
 
-  // Sort players: current player last, others in order
+  // Sort players based on turn order from viewing player's perspective
+  // Players are arranged in turn order around the board, with viewing player at bottom
   const sortedPlayerIds = useMemo(() => {
-    if (!playerId) return players;
-    const others = players.filter(id => id !== playerId);
-    return [...others, playerId];
-  }, [players, playerId]);
+    if (!playerId || players.length === 0) return players;
+    if (players.length === 1) return players;
+    
+    // Find viewing player's index in players array (this should match turn order from backend)
+    const viewingPlayerIndex = players.indexOf(playerId);
+    if (viewingPlayerIndex === -1) {
+      // Fallback: current player last
+      const others = players.filter(id => id !== playerId);
+      return [...others, playerId];
+    }
+    
+    // Arrange players around the board in turn order
+    // Position mapping:
+    // - For 3 players: [top-left-center, top-right-center, bottom-center (viewing)]
+    // - For 4 players: [top-center, mid-left, mid-right, bottom-center (viewing)]
+    const ordered: string[] = [];
+    
+    if (turnDirection === 'clockwise') {
+      if (players.length === 3) {
+        // 3 players: previous -> top-left, next -> top-right, viewing -> bottom
+        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+        const prevPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
+        ordered.push(players[prevPlayerIdx]); // top-left-center (index 0)
+        ordered.push(players[nextPlayerIdx]); // top-right-center (index 1)
+        ordered.push(playerId); // bottom-center (index 2, viewing)
+      } else if (players.length === 4) {
+        // 4 players: 2nd next -> top-center, next -> mid-left, previous -> mid-right, viewing -> bottom
+        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+        const secondNextIdx = (viewingPlayerIndex + 2) % players.length;
+        const prevPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
+        ordered.push(players[secondNextIdx]); // top-center (index 0)
+        ordered.push(players[nextPlayerIdx]); // mid-left (index 1)
+        ordered.push(players[prevPlayerIdx]); // mid-right (index 2)
+        ordered.push(playerId); // bottom-center (index 3, viewing)
+      } else {
+        // 2 players: next -> top, viewing -> bottom
+        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+        ordered.push(players[nextPlayerIdx]);
+        ordered.push(playerId);
+      }
+    } else {
+      // Anti-clockwise: reverse the order
+      if (players.length === 3) {
+        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
+        const prevPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+        ordered.push(players[nextPlayerIdx]); // top-left-center (index 0) - reversed
+        ordered.push(players[prevPlayerIdx]); // top-right-center (index 1) - reversed
+        ordered.push(playerId); // bottom-center (index 2, viewing)
+      } else if (players.length === 4) {
+        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
+        const secondNextIdx = (viewingPlayerIndex - 2 + players.length) % players.length;
+        const prevPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+        ordered.push(players[secondNextIdx]); // top-center (index 0) - reversed
+        ordered.push(players[nextPlayerIdx]); // mid-left (index 1) - reversed
+        ordered.push(players[prevPlayerIdx]); // mid-right (index 2) - reversed
+        ordered.push(playerId); // bottom-center (index 3, viewing)
+      } else {
+        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
+        ordered.push(players[nextPlayerIdx]);
+        ordered.push(playerId);
+      }
+    }
+    
+    return ordered;
+  }, [players, playerId, turnDirection]);
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -543,38 +629,39 @@ const GameRoom: React.FC = () => {
                 effectNotification={effectNotification}
                 isTeleportationMode={isTeleportationMode}
               />
-              <GameBoard
-                sortedPlayerIds={sortedPlayerIds}
-                playerId={playerId}
-                playerNames={playerNames}
-                currentPlayerId={currentPlayerId}
-                myHand={myHand}
-                opponentDecks={opponentDecks}
-                isLightSideActive={isLightSideActive}
-                discardTop={discardTop}
-                drawTop={drawTop}
-                discardPileShake={discardPileShake}
-                turnDirection={turnDirection}
-                isTeleportationMode={isTeleportationMode}
-                getPlayerPosition={getPlayerPosition}
-                onPlayCard={handlePlayCard}
-                onDrawCard={handleDrawCard}
-                onTeleportationSelect={(card, fromPlayerId) => {
-                  sendMessage({
-                    type: 'TELEPORTATION_SELECT',
-                    roomId,
-                    playerId,
-                    fromPlayerId,
-                    card: {
-                      id: card.id,
-                      lightSide: card.lightSide,
-                      darkSide: card.darkSide
-                    }
-                  });
-                  setIsTeleportationMode(false);
-                  setEffectNotification(null);
-                }}
-              />
+                    <GameBoard
+                      sortedPlayerIds={sortedPlayerIds}
+                      playerId={playerId}
+                      playerNames={playerNames}
+                      currentPlayerId={currentPlayerId}
+                      myHand={myHand}
+                      opponentDecks={opponentDecks}
+                      isLightSideActive={isLightSideActive}
+                      discardTop={discardTop}
+                      drawTop={drawTop}
+                      discardPileShake={discardPileShake}
+                      turnDirection={turnDirection}
+                      isTeleportationMode={isTeleportationMode}
+                      isFlipping={isFlipping}
+                      getPlayerPosition={getPlayerPosition}
+                      onPlayCard={handlePlayCard}
+                      onDrawCard={handleDrawCard}
+                      onTeleportationSelect={(card, fromPlayerId) => {
+                        sendMessage({
+                          type: 'TELEPORTATION_SELECT',
+                          roomId,
+                          playerId,
+                          fromPlayerId,
+                          card: {
+                            id: card.id,
+                            lightSide: card.lightSide,
+                            darkSide: card.darkSide
+                          }
+                        });
+                        setIsTeleportationMode(false);
+                        setEffectNotification(null);
+                      }}
+                    />
               <PlayableCardModal
                 playableCardDrawn={playableCardDrawn}
                 isLightSideActive={isLightSideActive}

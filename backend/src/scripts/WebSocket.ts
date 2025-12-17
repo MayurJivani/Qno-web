@@ -114,8 +114,8 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				}
 				handleDrawnCardDecision(ws, parsed.roomId, parsed.playerId, parsed.decision);
 			},
-			'GET_GAME_STATE': () => sendGameState(ws),
-		};
+		'GET_GAME_STATE': () => sendGameState(ws),
+	};
 
 		const action = actions[parsed.type];
 		if (action) {

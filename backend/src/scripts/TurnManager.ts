@@ -40,4 +40,8 @@ export class TurnManager {
     getDirection(): Direction {
         return this.direction;
     }
+
+    getPlayerOrder(): string[] {
+        return [...this.playerIds];
+    }
 }

@@ -18,7 +18,8 @@ interface GameBoardProps {
   discardPileShake: boolean;
   turnDirection: 'clockwise' | 'anti-clockwise';
   isTeleportationMode: boolean;
-  getPlayerPosition: (index: number, totalPlayers: number) => 'top-left' | 'top-right' | 'mid-right' | 'bottom-center' | 'top-center';
+  isFlipping: boolean;
+  getPlayerPosition: (index: number, totalPlayers: number) => 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   onPlayCard: (card: Card) => void;
   onDrawCard: () => void;
   onTeleportationSelect: (card: Card, fromPlayerId: string) => void;
@@ -37,6 +38,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   discardPileShake,
   turnDirection,
   isTeleportationMode,
+  isFlipping,
   getPlayerPosition,
   onPlayCard,
   onDrawCard,
@@ -102,7 +104,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               }}
             >
               <div className="absolute -bottom-1 -right-1 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-blue-900/60 blur-sm"></div>
-              <div className="relative">
+              <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
                 <CardComponent
                   card={isLightSideActive ? new Card(undefined, undefined, drawTop) : new Card(undefined, drawTop, undefined)}
                   isLight={!isLightSideActive}
@@ -125,7 +127,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               }}
             >
               <div className="absolute -bottom-2 -right-2 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-black/40 blur-sm"></div>
-              <div className="relative">
+              <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
                 <CardComponent
                   card={!isLightSideActive ? new Card(undefined, undefined, discardTop) : new Card(undefined, discardTop, undefined)}
                   isLight={!!isLightSideActive}
@@ -151,8 +153,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
         const positionStyles = {
           'top-left': { top: '180px', left: '20px', transform: 'translateX(0)' },
           'top-right': { top: '180px', right: '20px', transform: 'translateX(0)' },
-          'mid-right': { top: 'calc(50% + 80px)', right: '20px', transform: 'translateY(0)' },
-          'top-center': { top: '180px', left: '50%', transform: 'translateX(-50%)' }, // Center below top-center avatar with more space
+          'mid-right': { top: 'calc(50% - 20px)', right: '150px', transform: 'translateY(0)' },
+          'mid-left': { top: 'calc(50% - 20px)', left: '150px', transform: 'translateY(0)' },
+          'top-center': { top: '180px', left: '50%', transform: 'translateX(-50%)' },
+          'top-left-center': { top: '275px', left: 'calc(25% - 40px)', transform: 'translateX(-50%)' },
+          'top-right-center': { top: '275px', right: 'calc(25% - 40px)', transform: 'translateX(50%)' },
           'bottom-center': { top: '180px', left: '50%', transform: 'translateX(-50%)' } // Shouldn't happen for opponent
         };
 
@@ -171,6 +176,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               } : undefined}
               isSelectable={isSelectable}
               fanDirection={position === 'top-center' ? 'left' : 'right'}
+              isFlipping={isFlipping}
             />
           </div>
         );
@@ -179,20 +185,25 @@ const GameBoard: React.FC<GameBoardProps> = ({
       {/* Your Hand - Bottom Center, Fanned */}
       {/* Positioned with more space above to avoid overlapping with avatar */}
       <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-40">
-        {myHand.getCards().length > 0 && (
-          <div className="relative">
-            <FannedCards
-              cards={myHand.getCards()}
-              isLightSideActive={isLightSideActive}
-              onClick={(card: Card) => {
-                if (playerId === currentPlayerId && !isTeleportationMode) {
-                  onPlayCard(card);
-                }
-              }}
-              fanDirection="left"
-            />
-          </div>
-        )}
+        {myHand.getCards().length > 0 && (() => {
+          const playerIndex = sortedPlayerIds.findIndex(id => id === playerId);
+          const playerPosition = playerIndex !== -1 ? getPlayerPosition(playerIndex, sortedPlayerIds.length) : 'bottom-center';
+          return (
+            <div className="relative">
+              <FannedCards
+                cards={myHand.getCards()}
+                isLightSideActive={isLightSideActive}
+                onClick={(card: Card) => {
+                  if (playerId === currentPlayerId && !isTeleportationMode) {
+                    onPlayCard(card);
+                  }
+                }}
+                fanDirection={playerPosition === 'top-center' ? 'left' : 'right'}
+                isFlipping={isFlipping}
+              />
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

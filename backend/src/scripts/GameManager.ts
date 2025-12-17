@@ -35,7 +35,8 @@ export class GameManager {
             roomId: room.id,
             currentPlayer: room.getCurrentPlayerId(),
             direction: room.turnManager!.getDirection(),
-            playerNames: playerNamesObj
+            playerNames: playerNamesObj,
+            turnOrder: room.turnManager!.getPlayerOrder()
         });
 
         this.dealCards(room);
@@ -63,13 +64,19 @@ export class GameManager {
             playerNamesObj[id] = name;
         });
 
+        // Get turn order from TurnManager
+        const turnOrder = room.turnManager ? room.turnManager.getPlayerOrder() : Array.from(room.players.keys());
+
         room.players.forEach(p => {
             const opponentPlayersHands: Record<string, CardFace[]> = {};
-            const opponents = Array.from(room.players.values()).filter(op => op.id !== p.id);
-
-            opponents.forEach(op => {
-                // Each player should only see the inactive card faces of the opponents hands (without the id's)
-                opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, room.isLightSideActive));
+            
+            // Maintain turn order when building opponentHands
+            const opponentIds = turnOrder.filter(id => id !== p.id);
+            opponentIds.forEach(opId => {
+                const op = room.players.get(opId);
+                if (op) {
+                    opponentPlayersHands[opId] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, room.isLightSideActive));
+                }
             });
 
             // Each player sees complete information about their hand (along with id of the cards)
@@ -81,7 +88,8 @@ export class GameManager {
             p.sendMessage({
                 type: 'OPPONENT_HAND',
                 opponentHands: opponentPlayersHands,
-                playerNames: playerNamesObj
+                playerNames: playerNamesObj,
+                turnOrder: turnOrder
             });
         });
     }

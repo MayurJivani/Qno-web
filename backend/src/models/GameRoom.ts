@@ -181,9 +181,11 @@ export class GameRoom {
     }
 
     public broadcastOpponentHands(): void {
+        // Get turn order from TurnManager if available, otherwise use players Map order
+        const turnOrder = this.turnManager ? this.turnManager.getPlayerOrder() : Array.from(this.players.keys());
+        
         this.players.forEach(p => {
             const opponentPlayersHands: Record<string, CardFace[]> = {};
-            const opponents = Array.from(this.players.values()).filter(op => op.id !== p.id);
             const playerNamesObj: Record<string, string> = {};
 
             // Build playerNames object for all players
@@ -191,15 +193,20 @@ export class GameRoom {
                 playerNamesObj[id] = name;
             });
 
-            opponents.forEach(op => {
-                // Each player should only see the inactive card faces of the opponents hands (without the id's)
-                opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, this.isLightSideActive));
+            // Maintain turn order when building opponentHands
+            const opponentIds = turnOrder.filter(id => id !== p.id);
+            opponentIds.forEach(opId => {
+                const op = this.players.get(opId);
+                if (op) {
+                    opponentPlayersHands[opId] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, this.isLightSideActive));
+                }
             });
 
             p.sendMessage({
                 type: 'OPPONENT_HAND',
                 opponentHands: opponentPlayersHands,
-                playerNames: playerNamesObj
+                playerNames: playerNamesObj,
+                turnOrder: turnOrder
             });
         });
     }

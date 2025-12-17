@@ -8,6 +8,7 @@ interface FannedCardsProps {
   onClick?: (card: Card, index: number) => void;
   isSelectable?: boolean;
   fanDirection?: 'left' | 'right' | 'up';
+  isFlipping?: boolean;
 }
 
 const FannedCards: React.FC<FannedCardsProps> = ({ 
@@ -15,7 +16,8 @@ const FannedCards: React.FC<FannedCardsProps> = ({
   isLightSideActive, 
   onClick,
   isSelectable = false,
-  fanDirection = 'left'
+  fanDirection = 'left',
+  isFlipping = false
 }) => {
   if (cards.length === 0) return null;
 
@@ -30,33 +32,33 @@ const FannedCards: React.FC<FannedCardsProps> = ({
     }}>
       {cards.map((card, index) => {
         const rotation = -maxRotation + (rotationStep * index);
+        const finalRotation = fanDirection === 'right' ? rotation : rotation;
         const offsetX = index * 18;
-        const offsetY = Math.abs(rotation) * 0.3;
+        const offsetY = Math.abs(finalRotation) * 0.5;
         
         return (
           <div
             key={card.id || index}
-            className="absolute transition-all duration-300 hover:z-50 hover:scale-125"
+            className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
             style={{
               left: `${offsetX}px`,
               top: `${offsetY}px`,
-              transform: `rotate(${fanDirection === 'right' ? -rotation : rotation}deg) translateZ(${index * 5}px)`,
+              transform: `rotate(${finalRotation}deg)`,
               transformOrigin: 'bottom center',
-              cursor: onClick || isSelectable ? 'pointer' : 'default'
+              cursor: onClick || isSelectable ? 'pointer' : 'default',
+              zIndex: index
             }}
             onClick={() => onClick && onClick(card, index)}
           >
             <div className="transition-transform duration-200 hover:-translate-y-4">
               <div
-                onClick={onClick ? () => onClick(card, index) : undefined}
-                className={`relative w-16 h-24 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 border-black rounded-sm transition-transform duration-150 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none cursor-pointer ${
-                  isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''
-                }`}
+                className={`relative w-16 h-24 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 border-black rounded-sm transition-transform duration-150 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none ${
+                  onClick || isSelectable ? 'cursor-pointer' : 'cursor-default'
+                } ${isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''} ${isFlipping ? 'card-flip-animation' : ''}`}
                 style={{
                   background: getPixelGradient((isLightSideActive ? card.lightSide : card.darkSide)?.colour || 'Gray'),
                   imageRendering: "pixelated",
                   fontFamily: "'Press Start 2P', cursive",
-                  transform: `translateZ(0)`,
                   boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
                 }}
               >

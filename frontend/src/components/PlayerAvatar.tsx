@@ -5,7 +5,7 @@ interface PlayerAvatarProps {
   cardCount: number;
   isCurrentTurn: boolean;
   isYou: boolean;
-  position: 'top-left' | 'top-right' | 'mid-right' | 'bottom-center' | 'top-center';
+  position: 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   avatar?: string;
 }
 
@@ -24,9 +24,12 @@ const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
   const positionClasses = {
     'top-left': 'top-20 left-8',
     'top-right': 'top-20 right-8',
-    'mid-right': 'top-1/2 right-8 -translate-y-1/2',
+    'mid-right': 'top-86 right-53 -translate-y-1/2',
+    'mid-left': 'top-86 left-53 -translate-y-1/2',
     'bottom-center': 'bottom-45 left-1/2 -translate-x-1/2',
-    'top-center': 'top-20 left-1/2 -translate-x-1/2'
+    'top-center': 'top-20 left-1/2 -translate-x-1/2',
+    'top-left-center': 'top-2 0 left-1/5',
+    'top-right-center': 'top-40 right-1/5'
   };
 
   return (

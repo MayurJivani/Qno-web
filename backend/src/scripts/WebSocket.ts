@@ -17,57 +17,144 @@ export function setupWebSocketServer(server: http.Server) {
 
 	wss.on('connection', (ws: WebSocket) => {
 		Logger.info("CONNECTED", 'A user has connected.');
-		ws.send(JSON.stringify({ type: 'CONNECTED', message: 'WebSocket connection setup successfully' }))
-		ws.on('message', (message: string) => handleMessage(ws, JSON.parse(message)));
+		ws.send(JSON.stringify({ type: 'CONNECTED', message: 'WebSocket connection setup successfully' }));
+		ws.on('message', (message: Buffer) => {
+			try {
+				const messageStr = message.toString('utf-8');
+				handleMessage(ws, messageStr);
+			} catch (error) {
+				Logger.error(`Error handling message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		});
 		ws.on('close', () => handlePlayerDisconnect(ws));
-		ws.on('error', (err) => console.error('WebSocket error:', err));
+		ws.on('error', (err) => Logger.error(`WebSocket error: ${err.message || 'Unknown error'}`));
 	});
 }
 
-const handleMessage = (ws: WebSocket, message: any) => {
-	const actions: { [key: string]: Function } = {
-		'CREATE_ROOM': () => createRoom(ws),
-		'JOIN_ROOM': () => joinRoom(ws, message.roomId),
-		'REJOIN_ROOM': () => rejoinRoom(ws, message.roomId, message.playerId),
-		'LEFT_ROOM': () => handlePlayerDisconnect(ws, message.roomId, message.playerId),
-		'PLAYER_READY': () => handlePlayerReady(ws, message.roomId, message.playerId),
-		'START_GAME': () => handleGameStart(ws, message.roomId, message.playerId),
-		'PLAY_CARD': () => handleCardPlay(ws, message.roomId, message.playerId, message.card),
-		'DRAW_CARD': () => handleDrawCard(ws, message.roomId, message.playerId),
-		'TELEPORTATION_SELECT': () => handleTeleportationSelection(ws, message.roomId, message.playerId, message.fromPlayerId, message.card),
-		'GET_GAME_STATE': () => sendGameState(ws),
-	};
+const handleMessage = (ws: WebSocket, message: string) => {
+	try {
+		const parsed = JSON.parse(message);
+		
+		if (!parsed.type || typeof parsed.type !== 'string') {
+			Logger.error('Invalid message: missing or invalid type');
+			ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid message format' }));
+			return;
+		}
 
-	const action = actions[message.type];
-	action ? action() : Logger.error(`Unknown message type: ${message.type}`);
+		const actions: { [key: string]: () => void } = {
+			'CREATE_ROOM': () => {
+				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim() : '';
+				if (!playerName) {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Player name is required' }));
+					return;
+				}
+				createRoom(ws, playerName);
+			},
+			'JOIN_ROOM': () => {
+				if (typeof parsed.roomId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId' }));
+					return;
+				}
+				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim() : '';
+				if (!playerName) {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Player name is required' }));
+					return;
+				}
+				joinRoom(ws, parsed.roomId, playerName);
+			},
+			'REJOIN_ROOM': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				rejoinRoom(ws, parsed.roomId, parsed.playerId);
+			},
+			'LEFT_ROOM': () => handlePlayerDisconnect(ws, parsed.roomId, parsed.playerId),
+			'PLAYER_READY': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				handlePlayerReady(ws, parsed.roomId, parsed.playerId);
+			},
+			'START_GAME': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				handleGameStart(ws, parsed.roomId, parsed.playerId);
+			},
+			'PLAY_CARD': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || !parsed.card) {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid play card request' }));
+					return;
+				}
+				handleCardPlay(ws, parsed.roomId, parsed.playerId, parsed.card);
+			},
+			'DRAW_CARD': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				handleDrawCard(ws, parsed.roomId, parsed.playerId);
+			},
+			'TELEPORTATION_SELECT': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || 
+				    typeof parsed.fromPlayerId !== 'string' || !parsed.card) {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid teleportation selection' }));
+					return;
+				}
+				handleTeleportationSelection(ws, parsed.roomId, parsed.playerId, parsed.fromPlayerId, parsed.card);
+			},
+			'DRAWN_CARD_DECISION': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || 
+				    typeof parsed.decision !== 'string' || !['PLAY', 'KEEP'].includes(parsed.decision)) {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid drawn card decision' }));
+					return;
+				}
+				handleDrawnCardDecision(ws, parsed.roomId, parsed.playerId, parsed.decision);
+			},
+			'GET_GAME_STATE': () => sendGameState(ws),
+		};
+
+		const action = actions[parsed.type];
+		if (action) {
+			action();
+		} else {
+			Logger.error(`Unknown message type: ${parsed.type}`);
+			ws.send(JSON.stringify({ type: 'ERROR', message: `Unknown message type: ${parsed.type}` }));
+		}
+	} catch (error) {
+		Logger.error(`Error parsing message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Failed to parse message' }));
+	}
 };
 
 
-const createRoom = (ws: WebSocket) => {
+const createRoom = (ws: WebSocket, playerName: string) => {
 	const roomId = uuidv4();
 	const playerId = uuidv4();
-	playerMap.set(ws, { roomId, playerId });
-	const player: Player = new Player(playerId, ws);
+	const player: Player = new Player(playerId, playerName, ws);
 	const room: GameRoom = new GameRoom(roomId, player);
-	playerMap.set(ws, { roomId: roomId, playerId: playerId });
+	playerMap.set(ws, { roomId, playerId });
 	ws.send(JSON.stringify({ type: 'ROOM_CREATED', roomId, playerId }));
 	//addPlayer() function implicitly sends 'JOINED_ROOM' message to client and broadcasts 'NEW_PLAYER_JOINED' message to other players
 	room.addPlayer(player, playerMap);
 	rooms.set(roomId, room);
 	Logger.info("ROOM_CREATED", `Room created: ${roomId}`);
-	Logger.info("ROOM_JOINED", `Player: ${playerId} has joined room: ${roomId} `);
+	Logger.info("ROOM_JOINED", `Player: ${playerId} (${playerName}) has joined room: ${roomId} `);
 };
 
-const joinRoom = (ws: WebSocket, roomId: string) => {
+const joinRoom = (ws: WebSocket, roomId: string, playerName: string) => {
 	const room: GameRoom = rooms.get(roomId)!;
 	if (!room) return ws.send(JSON.stringify({ type: 'ERROR', message: 'Room not found' }));
 	const playerId = uuidv4();
 	playerMap.set(ws, { roomId, playerId });
 	if (room.canJoin()) {
-		const newPlayer: Player = new Player(playerId, ws);
+		const newPlayer: Player = new Player(playerId, playerName, ws);
 		//addPlayer() function implicitly sends 'JOINED_ROOM' message to client and broadcasts 'NEW_PLAYER_JOINED' message to other players
 		room.addPlayer(newPlayer, playerMap);
-		Logger.info("ROOM_JOINED", `Player: ${playerId} has joined room: ${roomId}`);
+		Logger.info("ROOM_JOINED", `Player: ${playerId} (${playerName}) has joined room: ${roomId}`);
 	} else {
 		if (room.status !== GameRoomStatus.NOT_STARTED) {
 			ws.send(JSON.stringify({ type: 'ERROR', message: 'Cannot join. Game has already started.' }));
@@ -115,7 +202,7 @@ const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: strin
 	}
 };
 
-const handlePlayerReady = (ws: WebSocket, roomId: string, playerId: string) => {
+const handlePlayerReady = (_ws: WebSocket, roomId: string, playerId: string) => {
 	const result = checkValidity(roomId, playerId);
 	//If result is empty, return
 	if (!result) return;
@@ -136,7 +223,9 @@ const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {
 	}
 }
 
-const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: Card) => {
+// Export alias for backward compatibility with existing tests
+export { setupWebSocketServer as setupWebSocket };
+const handleCardPlay = (_ws: WebSocket, roomId: string, playerId: string, card: Card) => {
 	const result = checkValidity(roomId, playerId);
 	if (!result) return;
 	const { room, player } = result;
@@ -144,11 +233,18 @@ const handleCardPlay = (ws: WebSocket, roomId: string, playerId: string, card: C
 };
 
 
-const handleDrawCard = (ws: WebSocket, roomId: string, playerId: string) => {
+const handleDrawCard = (_ws: WebSocket, roomId: string, playerId: string) => {
 	const result = checkValidity(roomId, playerId);
 	if (!result) return;
 	const { room, player } = result;
 	GameManager.drawCard(room, player)
+};
+
+const handleDrawnCardDecision = (_ws: WebSocket, roomId: string, playerId: string, decision: 'PLAY' | 'KEEP') => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	const { room, player } = result;
+	GameManager.handleDrawnCardDecision(room, player, decision);
 };
 
 const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string) => {
@@ -169,11 +265,33 @@ const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string) => {
 	}));
 }
 
-const handleTeleportationSelection = (ws: WebSocket, roomId: string, playerId: string, fromPlayerId: string, card: Card) => {
+const handleTeleportationSelection = (_ws: WebSocket, roomId: string, playerId: string, fromPlayerId: string, cardData: any) => {
 	const result = checkValidity(roomId, playerId);
 	if (!result) return;
 	const { room, player } = result;
-	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, card)
+	
+	// Construct a proper Card object from the received data
+	// The frontend may only send one side (the visible inactive face), so we need to handle that
+	// We'll use the ID to find the actual card in the opponent's hand, which has both sides
+	if (!cardData || !cardData.id) {
+		player.sendMessage({ type: 'ERROR', message: 'Invalid card data' });
+		return;
+	}
+	
+	// Find the actual card in the opponent's hand by ID (it has both sides)
+	const fromPlayer = room.players.get(fromPlayerId);
+	if (!fromPlayer) {
+		player.sendMessage({ type: 'ERROR', message: 'Invalid player selected.' });
+		return;
+	}
+	
+	const actualCard = fromPlayer.getHandCards().find(c => c.id === cardData.id);
+	if (!actualCard) {
+		player.sendMessage({ type: 'ERROR', message: 'Selected card not found in opponent\'s hand.' });
+		return;
+	}
+	
+	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, actualCard)
 }
 
 const sendGameState = (ws: WebSocket) => {
@@ -183,7 +301,7 @@ const sendGameState = (ws: WebSocket) => {
 			players: Array.from(room.players.keys()),
 			deckSize: room.drawPileManager.getRemainingCardCount()
 		})),
-		playerMap: Array.from(playerMap.entries()).map(([ws, data]) => ({
+		playerMap: Array.from(playerMap.entries()).map(([_ws, data]) => ({
 			roomId: data.roomId,
 			playerId: data.playerId
 		}))

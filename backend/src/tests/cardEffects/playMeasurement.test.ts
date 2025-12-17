@@ -85,7 +85,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
 
     let prevCardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
-    let player1PlayCard: Card = new Card({ colour: prevCardOnTopOfDiscardPile.colour, value: "4" }, { colour: Colours.Dark.Orange, value: "9" });
+    let player1PlayCard: Card = new Card(1, { colour: prevCardOnTopOfDiscardPile.colour, value: "4" }, { colour: Colours.Dark.Orange, value: "9" });
 
     // Play card
     player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: player1PlayCard });
@@ -93,7 +93,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
         player1.waitFor('DISCARD_PILE_TOP')
     ])
 
-    let player2PlayCard: Card = new Card({ colour: Colours.WildCard.Black, value: ActionCards.WildCard.Measurement }, { colour: Colours.Dark.Orange, value: "8" });
+    let player2PlayCard: Card = new Card(2, { colour: Colours.WildCard.Black, value: ActionCards.WildCard.Measurement }, { colour: Colours.Dark.Orange, value: "8" });
 
     player2.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player2Id, card: player2PlayCard });
     const [serverAcknowledgement,

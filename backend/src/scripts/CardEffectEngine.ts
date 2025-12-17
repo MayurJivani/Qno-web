@@ -6,49 +6,52 @@ import { CardUtils } from "../utils/CardUtils";
 import { Colours } from "../enums/cards/Colours";
 import { ActionCards } from "../enums/cards/ActionCards";
 import { Direction } from "../enums/gameRoom/Direction";
+import { GameManager } from "./GameManager";
 import { Logger } from "../utils/Logger";
 
 export class CardEffectEngine {
 
-    static handleCardEffect(card: Card, room: GameRoom): { advanceTurn: boolean } {
+    static handleCardEffect(card: Card, room: GameRoom): { advanceTurn: boolean; blocked?: boolean } {
         const cardFace: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
         if (CardUtils.isActionCard(cardFace)) {
-            this.applyEffect(cardFace, room);
+            const effectResult = this.applyEffect(cardFace, room);
+            if (effectResult?.blocked) {
+                return { advanceTurn: true, blocked: true };
+            }
             return { advanceTurn: true };
         }
         // For normal cards, no special handling is needed.
         return { advanceTurn: true };
     }
 
-    static applyEffect(cardFace: CardFace, room: GameRoom) {
+    static applyEffect(cardFace: CardFace, room: GameRoom): { blocked?: boolean } | undefined {
         switch (cardFace.value) {
             case ActionCards.Light.Pauli_X:
                 this.handlePauliX(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.Dark.Pauli_Y:
                 this.handlePauliY(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.Dark.Pauli_Z:
                 this.handlePauliZ(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.Light.Teleportation:
-                this.handleTeleportation(cardFace, room);
-                break;
+                return this.handleTeleportation(cardFace, room);
             case ActionCards.WildCard.Measurement:
                 this.handleMeasurement(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.WildCard.Superposition:
                 this.handleSuperposition(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.WildCard.Entanglement:
                 this.handleEntanglement(cardFace, room);
-                break;
+                return undefined;
             case ActionCards.WildCard.Colour_Superposition:
                 this.handleColourSuperposition(cardFace, room);
-                break;
+                return undefined;
             default:
                 // No special effect, normal card
-                break;
+                return undefined;
         }
     }
 
@@ -84,6 +87,12 @@ export class CardEffectEngine {
             effect: cardFace.value,
             isLightSideActive: room.isLightSideActive,
         });
+        // After flipping sides, refresh opponent hands so they show the new inactive faces
+        room.broadcastOpponentHands();
+        // After flipping sides, broadcast updated draw and discard pile cards
+        // because the visible faces have changed
+        room.broadcastTopOfDrawPile();
+        room.broadcastTopOfDiscardPile();
     }
 
     private static handlePauliY(cardFace: CardFace, room: GameRoom) {
@@ -100,6 +109,12 @@ export class CardEffectEngine {
             isLightSideActive: room.isLightSideActive,
             direction: room.turnManager.getDirection()
         });
+        // After flipping sides, refresh opponent hands so they show the new inactive faces
+        room.broadcastOpponentHands();
+        // After flipping sides, broadcast updated draw and discard pile cards
+        // because the visible faces have changed
+        room.broadcastTopOfDrawPile();
+        room.broadcastTopOfDiscardPile();
     }
 
     private static handlePauliZ(cardFace: CardFace, room: GameRoom) {
@@ -115,10 +130,24 @@ export class CardEffectEngine {
         });
     }
 
-    private static handleTeleportation(cardFace: CardFace, room: GameRoom) {
+    private static handleTeleportation(_cardFace: CardFace, room: GameRoom): { blocked: boolean } | undefined {
 
         const currentPlayer: Player | undefined = room.getCurrentPlayer();
-        if (!currentPlayer) return;
+        if (!currentPlayer) return undefined;
+
+        // Check if any opponent has only one card - teleportation can't be used on last card
+        const opponents = Array.from(room.players.values()).filter(op => op.id !== currentPlayer.id);
+        const hasOpponentWithOneCard = opponents.some(op => op.getHandCards().length === 1);
+        
+        if (hasOpponentWithOneCard) {
+            currentPlayer.sendMessage({
+                type: 'ERROR',
+                message: 'Cannot use Teleportation: An opponent only has one card remaining. You cannot take their last card.'
+            });
+            Logger.info("EFFECT", `Teleportation blocked: Player ${currentPlayer.id} attempted to teleport but opponent has only one card in room: ${room.id}`);
+            return { blocked: true };
+        }
+
         room.teleportationState = {
             awaitingPlayerId: currentPlayer.id,
             status: "AWAITING_SELECTION"
@@ -131,9 +160,12 @@ export class CardEffectEngine {
             const opponents = Array.from(room.players.values()).filter(op => op.id !== p.id);
 
             // Refresh each opponents hand along with the id of their cards
+            // Only show opponents who have more than one card (can't teleport from single card hands)
             opponents.forEach(op => {
-                // Each player should only see the inactive card faces of the opponents hands (with the id's)
-                opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFaceWithId(card, room.isLightSideActive));
+                if (op.getHandCards().length > 1) {
+                    // Each player should only see the inactive card faces of the opponents hands (with the id's)
+                    opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFaceWithId(card, room.isLightSideActive));
+                }
             });
 
             //Send a map of playerid:hand while also sending card id along with each card face to each player.
@@ -148,6 +180,8 @@ export class CardEffectEngine {
             type: 'AWAITING_TELEPORTATION_TARGET',
             message: 'Select a card from an opponent to teleport into your hand.',
         });
+
+        return undefined; // Success
     }
 
     // 'player' is the current player who played the teleportation card and 'fromPlayerId' is the id of the player from whose hand the card has been teleported
@@ -187,6 +221,18 @@ export class CardEffectEngine {
         // Add card to current player's hand
         player.getHand().addCard(cardSelected);
 
+        // Send updated hand to the player who received the teleported card
+        player.sendMessage({
+            type: 'YOUR_HAND',
+            hand: player.getHand()
+        });
+
+        // Send updated hand to the player who lost the teleported card
+        fromPlayer.sendMessage({
+            type: 'YOUR_HAND',
+            hand: fromPlayer.getHand()
+        });
+
         room.broadcast({
             type: 'CARD_EFFECT',
             effect: ActionCards.Light.Teleportation,
@@ -204,7 +250,21 @@ export class CardEffectEngine {
         // Mark teleportation as completed
         room.teleportationState = { awaitingPlayerId: room.teleportationState.awaitingPlayerId, status: 'COMPLETED' };
 
-        // TODO: Either on frontend or backend refresh the opponents hand so that the card id's are not visible anymore after teleportation is complete
+        // Refresh opponent hands to hide card IDs after teleportation is complete
+        room.broadcastOpponentHands();
+
+        // Check win conditions after teleportation
+        // Check if player who received card wins (hand empty - shouldn't happen as they just got a card, but check anyway)
+        if (player.getHandCards().length === 0) {
+            GameManager.endGame(room, player);
+            return { advanceTurn: false };
+        }
+
+        // Check if opponent who lost card loses (hand empty)
+        if (fromPlayer.getHandCards().length === 0) {
+            GameManager.endGame(room, player); // Current player wins
+            return { advanceTurn: false };
+        }
 
         return { advanceTurn: true };
     }
@@ -246,7 +306,7 @@ export class CardEffectEngine {
         });
     }
 
-    private static handleEntanglement(cardFace: CardFace, room: GameRoom) {
+    private static handleEntanglement(_cardFace: CardFace, _room: GameRoom) {
         throw new Error("Method not implemented.");
     }
 

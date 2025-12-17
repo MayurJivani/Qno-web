@@ -4,7 +4,7 @@ export class WebSockTestClient {
     private ws: WebSocket;
     private messageQueue: any[] = [];
 
-    constructor(private url: string) {
+    constructor(url: string) {
         this.ws = new WebSocket(url);
         this.ws.on('message', this.handleMessage.bind(this));
     }

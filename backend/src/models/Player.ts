@@ -5,12 +5,14 @@ import { Hand } from "./Hand";
 
 export class Player {
     id: string;
+    name: string;
     socket: WebSocket;
     status: PlayerStatus;
     private hand: Hand;
 
-    constructor(id: string, socket: WebSocket) {
+    constructor(id: string, name: string, socket: WebSocket) {
         this.id = id;
+        this.name = name;
         this.socket = socket;
         this.status = PlayerStatus.NOT_READY;
         this.hand = new Hand();

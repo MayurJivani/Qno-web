@@ -1,58 +1,144 @@
 // hooks/useGameSocket.ts
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
-type MessageHandler = (data: any) => void;
+type MessageHandler = (data: unknown) => void;
+
+interface WebSocketMessage {
+    type: string;
+    [key: string]: unknown;
+}
 
 export const useGameSocket = (
     onMessage: MessageHandler
 ) => {
     const socketRef = useRef<WebSocket | null>(null);
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const reconnectAttemptsRef = useRef(0);
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000;
+    const onMessageRef = useRef(onMessage);
 
-    const sendMessage = (message: any) => {
+    // Keep onMessage ref up to date
+    useEffect(() => {
+        onMessageRef.current = onMessage;
+    }, [onMessage]);
+
+    const sendMessage = useCallback((message: WebSocketMessage) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-            socketRef.current.send(JSON.stringify(message));
+            try {
+                socketRef.current.send(JSON.stringify(message));
+            } catch (error) {
+                console.error('[WS] Failed to send message:', error);
+            }
         }
-    };
+    }, []);
 
-    const connect = (onOpenMessage: any) => {
+    const connect = useCallback((onOpenMessage: WebSocketMessage) => {
+        if (socketRef.current?.readyState === WebSocket.CONNECTING || 
+            socketRef.current?.readyState === WebSocket.OPEN) {
+            return;
+        }
+
         if (socketRef.current) {
             socketRef.current.close();
         }
 
-        const socket = new WebSocket(import.meta.env.VITE_WS_URL);
-        socketRef.current = socket;
+        // Get WebSocket URL from environment or use default
+        let wsUrl = import.meta.env.VITE_WS_URL;
+        
+        // Fallback to default if not set (for development)
+        if (!wsUrl) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname;
+            const port = import.meta.env.VITE_WS_PORT || '3000';
+            wsUrl = `${protocol}//${host}:${port}`;
+        }
 
-        socket.onopen = () => {
-            console.log('[WS] Connected');
-            sendMessage(onOpenMessage);
-        };
+        // Remove trailing slash if present
+        wsUrl = wsUrl.replace(/\/$/, '');
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            onMessage(data);
-        };
+        if (!wsUrl) {
+            console.error('[WS] WebSocket URL not configured');
+            onMessageRef.current({ 
+                type: 'ERROR', 
+                message: 'WebSocket URL not configured. Please check your environment variables.' 
+            });
+            return;
+        }
 
-        socket.onclose = () => {
-            console.log('[WS] Disconnected');
-        };
+        try {
+            const socket = new WebSocket(wsUrl);
+            socketRef.current = socket;
 
-        socket.onerror = (e) => {
-            console.error('[WS] Error:', e);
-        };
-    };
+            socket.onopen = () => {
+                reconnectAttemptsRef.current = 0;
+                if (reconnectTimeoutRef.current) {
+                    clearTimeout(reconnectTimeoutRef.current);
+                    reconnectTimeoutRef.current = null;
+                }
+                sendMessage(onOpenMessage);
+            };
 
-    const disconnect = () => {
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data as string);
+                    onMessageRef.current(data);
+                } catch (error) {
+                    console.error('[WS] Failed to parse message:', error);
+                }
+            };
+
+            socket.onclose = (event) => {
+                // Don't reconnect if it was a normal close
+                if (event.code === 1000) {
+                    return;
+                }
+
+                // Attempt to reconnect only if not manually disconnected
+                if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+                    reconnectAttemptsRef.current += 1;
+                    const attemptMsg = `Reconnecting... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`;
+                    onMessageRef.current({ type: 'ERROR', message: attemptMsg });
+                    reconnectTimeoutRef.current = setTimeout(() => {
+                        connect(onOpenMessage);
+                    }, reconnectDelay);
+                } else {
+                    console.error('[WS] Max reconnection attempts reached');
+                    onMessageRef.current({ 
+                        type: 'ERROR', 
+                        message: `Connection lost after ${maxReconnectAttempts} attempts. Please check if the server is running and refresh the page.` 
+                    });
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error('[WS] Error:', error);
+                const errorMessage = `Failed to connect to server at ${wsUrl}. Please make sure the backend server is running on port 3000.`;
+                onMessageRef.current({ type: 'ERROR', message: errorMessage });
+            };
+        } catch (error) {
+            console.error('[WS] Failed to create WebSocket:', error);
+            onMessageRef.current({ type: 'ERROR', message: 'Failed to connect to server' });
+        }
+    }, [sendMessage]);
+
+    const disconnect = useCallback(() => {
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+        reconnectAttemptsRef.current = maxReconnectAttempts; // Prevent reconnection
         if (socketRef.current) {
-            socketRef.current.close();
+            socketRef.current.close(1000, 'Client disconnecting');
             socketRef.current = null;
         }
-    };
+    }, []);
 
     useEffect(() => {
         return () => {
             disconnect();
         };
-    }, []);
+    }, [disconnect]);
 
     return { connect, disconnect, sendMessage };
 };

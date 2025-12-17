@@ -24,11 +24,18 @@ export class GameManager {
 
         room.startTurnManager();
 
+        // Build playerNames object
+        const playerNamesObj: Record<string, string> = {};
+        room.playerNames.forEach((name, id) => {
+            playerNamesObj[id] = name;
+        });
+
         room.broadcast({
             type: "GAME_STARTED",
             roomId: room.id,
             currentPlayer: room.getCurrentPlayerId(),
             direction: room.turnManager!.getDirection(),
+            playerNames: playerNamesObj
         });
 
         this.dealCards(room);
@@ -50,6 +57,12 @@ export class GameManager {
             });
         }
 
+        // Build playerNames object
+        const playerNamesObj: Record<string, string> = {};
+        room.playerNames.forEach((name, id) => {
+            playerNamesObj[id] = name;
+        });
+
         room.players.forEach(p => {
             const opponentPlayersHands: Record<string, CardFace[]> = {};
             const opponents = Array.from(room.players.values()).filter(op => op.id !== p.id);
@@ -67,12 +80,23 @@ export class GameManager {
 
             p.sendMessage({
                 type: 'OPPONENT_HAND',
-                opponentHands: opponentPlayersHands
+                opponentHands: opponentPlayersHands,
+                playerNames: playerNamesObj
             });
         });
     }
 
     public static playCard(room: GameRoom, player: Player, card: Card) {
+        // Check if teleportation is in progress and this player is waiting for selection
+        if (room.teleportationState && room.teleportationState.status === 'AWAITING_SELECTION' 
+            && room.teleportationState.awaitingPlayerId === player.id) {
+            player.sendMessage({
+                type: 'ERROR',
+                message: 'Cannot play cards while waiting for teleportation selection. Please select a card to teleport first.'
+            });
+            return;
+        }
+
         let cardFacePlayed: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
         if (CardEffectEngine.checkValidMove(card, room)) {
             // Remove the card from the player's hand if it is a valid move
@@ -98,8 +122,44 @@ export class GameManager {
 
             Logger.info("PLAYED_CARD", ` Player: ${player.id} played a ${cardFacePlayed.colour} ${cardFacePlayed.value} card in room: ${room.id}.`);
 
+            // Broadcast updated opponent hands to all players after card is played
+            room.broadcastOpponentHands();
+
+            // Check win condition - if player's hand is empty, they win
+            if (player.getHandCards().length === 0) {
+                GameManager.endGame(room, player);
+                return;
+            }
+
             // Teleportation card is handled separately
             if (cardFacePlayed.value == ActionCards.Light.Teleportation) {
+                // Check if teleportation can be used before applying effect
+                const opponents = Array.from(room.players.values()).filter(op => op.id !== player.id);
+                const hasOpponentWithOneCard = opponents.some(op => op.getHandCards().length === 1);
+                
+                if (hasOpponentWithOneCard) {
+                    // Return card to player's hand
+                    player.getHand().addCard(card);
+                    // Remove card from discard pile
+                    room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
+                    
+                    player.sendMessage({
+                        type: 'YOUR_HAND',
+                        hand: player.getHand()
+                    });
+                    player.sendMessage({
+                        type: 'ERROR',
+                        message: 'Cannot use Teleportation: An opponent only has one card remaining. You cannot take their last card.'
+                    });
+                    // Update discard pile top
+                    room.broadcastTopOfDiscardPile();
+                    // Advance turn since the card play was blocked
+                    this.advanceTurn(room);
+                    room.broadcastTopOfDrawPile();
+                    return;
+                }
+
+                // Teleportation can proceed
                 CardEffectEngine.handleCardEffect(card, room);
                 return;
             }
@@ -122,7 +182,28 @@ export class GameManager {
         GameManager.handleRoomUpdate(room, effectResult)
     }
 
+    public static endGame(room: GameRoom, winner: Player): void {
+        if (room.status === GameRoomStatus.FINISHED) {
+            return; // Game already ended
+        }
+
+        room.status = GameRoomStatus.FINISHED;
+
+        Logger.info("GAME_END", `Player ${winner.id} won the game in room: ${room.id}`);
+
+        room.broadcast({
+            type: 'GAME_END',
+            winnerId: winner.id,
+            message: `Player ${winner.id.substring(0, 8)}... won the game!`
+        });
+    }
+
     private static handleRoomUpdate(room: GameRoom, effectResult: { advanceTurn: boolean }) {
+        // Don't advance turn if game has ended
+        if (room.status === GameRoomStatus.FINISHED) {
+            return;
+        }
+
         const currentCardOnTopOfDrawPile: Card = room.drawPileManager.getTopCard(room.isLightSideActive)!;
         if (effectResult.advanceTurn) {
             this.advanceTurn(room);
@@ -139,6 +220,16 @@ export class GameManager {
     }
 
     public static drawCard(room: GameRoom, player: Player) {
+        // Check if teleportation is in progress and this player is waiting for selection
+        if (room.teleportationState && room.teleportationState.status === 'AWAITING_SELECTION' 
+            && room.teleportationState.awaitingPlayerId === player.id) {
+            player.sendMessage({
+                type: 'ERROR',
+                message: 'Cannot draw cards while waiting for teleportation selection. Please select a card to teleport first.'
+            });
+            return;
+        }
+
         if (!room.drawPileManager.getRemainingCardCount()) {
             player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
             return;
@@ -149,10 +240,36 @@ export class GameManager {
         player.getHand().addCard(cardDrawn);
         let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
         Logger.info("CARD_DRAWN", `Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card in room: ${room.id}.`);
-        // If the card drawn can be played, play it forcefully
+        
+        // If the card drawn can be played, prompt the user instead of auto-playing
         if (CardEffectEngine.checkValidMove(cardDrawn, room)) {
-            this.playCard(room, player, cardDrawn);
-            turnChangeHandled = true;
+            // Store the drawn card in room state so we can play it later if user chooses
+            room.drawnCardAwaitingDecision!.set(player.id, cardDrawn);
+            
+            // Send prompt to player
+            player.sendMessage({
+                type: 'PLAYABLE_CARD_DRAWN',
+                card: cardDrawn,
+                message: 'You drew a playable card! Would you like to play it or keep it?'
+            });
+            
+            // Still send CARD_DRAWN to update hand, but don't advance turn yet
+            player.sendMessage({
+                type: 'CARD_DRAWN',
+                card: cardDrawn,
+                hand: player.getHandCards()
+            });
+            
+            // Send the card drawn by the player to the opponents
+            room.broadcast({
+                type: 'OPPONENT_DREW_CARD',
+                card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
+                opponentId: player.id
+            }, [player.id]);
+            
+            // Broadcast updated opponent hands
+            room.broadcastOpponentHands();
+            return; // Don't advance turn yet - wait for user decision
         }
 
         // Send the card drawn to the current player along with their updated hand
@@ -169,6 +286,9 @@ export class GameManager {
             opponentId: player.id // Pass the playerId of the person who drew the card
         }, [player.id]);
 
+        // Broadcast updated opponent hands to all players after card is drawn
+        room.broadcastOpponentHands();
+
         // Change turn to next player
         if (!turnChangeHandled) {
             this.advanceTurn(room);
@@ -179,9 +299,34 @@ export class GameManager {
         }
     }
 
+    public static handleDrawnCardDecision(room: GameRoom, player: Player, decision: 'PLAY' | 'KEEP') {
+        const drawnCard = room.drawnCardAwaitingDecision?.get(player.id);
+        if (!drawnCard) {
+            player.sendMessage({ type: 'ERROR', message: 'No drawn card awaiting decision' });
+            return;
+        }
+
+        // Remove from awaiting decision map
+        room.drawnCardAwaitingDecision!.delete(player.id);
+
+        if (decision === 'PLAY') {
+            // Play the drawn card
+            this.playCard(room, player, drawnCard);
+        } else {
+            // Keep the card - just advance turn
+            this.advanceTurn(room);
+            room.broadcastTopOfDrawPile();
+            room.broadcastTopOfDiscardPile();
+        }
+    }
+
     private static advanceTurn(room: GameRoom): void {
-        if (!room.turnManager) return;
+        if (!room.turnManager || room.status === GameRoomStatus.FINISHED) return;
         const nextPlayer = room.turnManager.advanceTurn();
-        room.broadcast({ type: 'TURN_CHANGED', currentPlayer: nextPlayer });
+        room.broadcast({
+            type: 'TURN_CHANGED',
+            currentPlayer: nextPlayer,
+            direction: room.turnManager.getDirection()
+        });
     }
 }

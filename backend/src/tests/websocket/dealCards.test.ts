@@ -73,13 +73,13 @@ test('Each player should receive correct hand and opponent hand', async () => {
     expect(yourHandP1.hand).not.toEqual(yourHandP2.hand);
 
     const P1FacesVisible: CardFace[] = [];
-    yourHandP2.hand.forEach((card: Card) => {
+    yourHandP2.hand.cards.forEach((card: Card) => {
         const inactiveCardFace = CardUtils.getInactiveFace(card, true);
         P1FacesVisible.push(inactiveCardFace);
     })
 
     const P2FacesVisible: CardFace[] = [];
-    yourHandP1.hand.forEach((card: Card) => {
+    yourHandP1.hand.cards.forEach((card: Card) => {
         const inactiveCardFace = CardUtils.getInactiveFace(card, true);
         P2FacesVisible.push(inactiveCardFace);
     })

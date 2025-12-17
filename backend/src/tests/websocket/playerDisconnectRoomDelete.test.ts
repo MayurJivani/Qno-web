@@ -48,7 +48,8 @@ test("room is deleted when last player leaves", async () => {
     const calls = consoleSpy.mock.calls;
     const lastLog = calls[calls.length - 1][0];
 
-    expect(lastLog).toBe(`[ROOM_DELETED] Room: ${roomId} was deleted as there were no players left`);
+    expect(lastLog).toContain(`[ROOM_DELETED]`);
+    expect(lastLog).toContain(`Room: ${roomId} was deleted as there were no players left`);
 
     consoleSpy.mockRestore();
 });

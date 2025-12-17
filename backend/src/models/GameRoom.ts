@@ -14,6 +14,7 @@ import { TeleportationState } from './interfaces/TeleportationState';
 export class GameRoom {
     public id: string;
     public players: Map<string, Player>;
+    public playerNames: Map<string, string>;
     public host: Player;
     public isLightSideActive: boolean;
     public status: GameRoomStatus;
@@ -21,25 +22,30 @@ export class GameRoom {
     public discardPileManager: DiscardPileManager;
     public turnManager?: TurnManager;
     public teleportationState?: TeleportationState | null;
+    public drawnCardAwaitingDecision?: Map<string, Card>;
 
     constructor(id: string, host: Player) {
         this.id = id;
         this.players = new Map();
+        this.playerNames = new Map();
         this.host = host;
         this.isLightSideActive = true;
         this.drawPileManager = new DrawPileManager();
         this.discardPileManager = new DiscardPileManager();
         this.status = GameRoomStatus.NOT_STARTED;
         this.players.set(host.id, host);
+        this.playerNames.set(host.id, host.name);
         this.teleportationState = null;
+        this.drawnCardAwaitingDecision = new Map();
     }
 
     public addPlayer(player: Player, playerMap: Map<WebSocket, { roomId: string; playerId: string }>): void {
         if (this.players.size < 4 && this.status === GameRoomStatus.NOT_STARTED) {
             this.players.set(player.id, player);
+            this.playerNames.set(player.id, player.name);
             playerMap.set(player.socket, { roomId: this.id, playerId: player.id });
             player.sendMessage({ type: 'JOINED_ROOM', roomId: this.id, playerId: player.id });
-            this.broadcast({ type: "NEW_PLAYER_JOINED", roomId: this.id, playerId: player.id }, [player.id]);
+            this.broadcast({ type: "NEW_PLAYER_JOINED", roomId: this.id, playerId: player.id, playerName: player.name }, [player.id]);
         } else {
             player.sendMessage({ type: 'ERROR', message: 'Room is full or not joinable' });
         }
@@ -47,6 +53,7 @@ export class GameRoom {
 
     public removePlayer(playerId: string, rooms: Map<string, GameRoom>): void {
         this.players.delete(playerId);
+        this.playerNames.delete(playerId);
         if (this.turnManager) {
             this.turnManager.removePlayer(playerId);
         }
@@ -89,7 +96,7 @@ export class GameRoom {
     }
 
     public canStartGame(playerId: string): boolean {
-        return (playerId === this.host.id && this.allPlayersReady()) ? true : false;
+        return playerId === this.host.id && this.allPlayersReady();
     }
 
     public getCurrentPlayerId(): string | undefined {
@@ -98,7 +105,7 @@ export class GameRoom {
 
     // Check if room is not full and game hasn't started yet
     public canJoin(): boolean {
-        return this.players.size < 4 && (this.status == GameRoomStatus.NOT_STARTED) ? true : false;
+        return this.players.size < 4 && this.status === GameRoomStatus.NOT_STARTED;
     }
 
     private sendTopOfDrawPile(player: Player): CardFace | null {
@@ -107,7 +114,11 @@ export class GameRoom {
             Logger.error('Failed to get card on top of draw pile, draw pile is empty');
             return null;
         }
-        const faceToShow: CardFace = CardUtils.getInactiveFace(topCard, this.isLightSideActive);
+        const faceToShow: CardFace | undefined = CardUtils.getInactiveFace(topCard, this.isLightSideActive);
+        if (!faceToShow) {
+            Logger.error('Failed to get inactive face of card on top of draw pile');
+            return null;
+        }
 
         player.sendMessage({
             type: 'DRAW_PILE_TOP',
@@ -118,11 +129,17 @@ export class GameRoom {
     }
 
     public broadcastTopOfDrawPile(): void {
-        let cardOnTopOfDrawPile: CardFace;
-        this.players.forEach(player => {
-            cardOnTopOfDrawPile = this.sendTopOfDrawPile(player)!;
-        });
-        Logger.info("DRAW_PILE_TOP", `New card face visible on top of draw pile is: ${cardOnTopOfDrawPile!.colour} ${cardOnTopOfDrawPile!.value} card in room: ${this.id}.`);
+        let cardOnTopOfDrawPile: CardFace | null = null;
+        for (const player of this.players.values()) {
+            const cardFace = this.sendTopOfDrawPile(player);
+            if (cardFace && !cardOnTopOfDrawPile) {
+                cardOnTopOfDrawPile = cardFace;
+            }
+        }
+        if (cardOnTopOfDrawPile !== null) {
+            const cardFace: CardFace = cardOnTopOfDrawPile; // Type narrowing helper
+            Logger.info("DRAW_PILE_TOP", `New card face visible on top of draw pile is: ${cardFace.colour} ${cardFace.value} card in room: ${this.id}.`);
+        }
     }
 
     private sendTopOfDiscardPile(player: Player): CardFace | null {
@@ -131,7 +148,11 @@ export class GameRoom {
             Logger.error('Failed to get card on top of discard pile, discard pile might be empty');
             return null;
         }
-        const faceToShow: CardFace = CardUtils.getActiveFace(topCard, this.isLightSideActive);
+        const faceToShow: CardFace | undefined = CardUtils.getActiveFace(topCard, this.isLightSideActive);
+        if (!faceToShow) {
+            Logger.error('Failed to get active face of card on top of discard pile');
+            return null;
+        }
 
         player.sendMessage({
             type: 'DISCARD_PILE_TOP',
@@ -142,14 +163,44 @@ export class GameRoom {
     }
 
     public broadcastTopOfDiscardPile(): void {
-        let cardOnTopOfDiscardPile: CardFace;
-        this.players.forEach(player => {
-            cardOnTopOfDiscardPile = this.sendTopOfDiscardPile(player)!;
-        });
-        Logger.info("DISCARD_PILE_TOP", `New card face visible on top of discard pile is: ${cardOnTopOfDiscardPile!.colour} ${cardOnTopOfDiscardPile!.value} card in room: ${this.id}.`);
+        let cardOnTopOfDiscardPile: CardFace | null = null;
+        for (const player of this.players.values()) {
+            const cardFace = this.sendTopOfDiscardPile(player);
+            if (cardFace && !cardOnTopOfDiscardPile) {
+                cardOnTopOfDiscardPile = cardFace;
+            }
+        }
+        if (cardOnTopOfDiscardPile !== null) {
+            const cardFace: CardFace = cardOnTopOfDiscardPile; // Type narrowing helper
+            Logger.info("DISCARD_PILE_TOP", `New card face visible on top of discard pile is: ${cardFace.colour} ${cardFace.value} card in room: ${this.id}.`);
+        }
     }
 
     public getCurrentPlayer(): Player | undefined {
         return this.players.get(this.turnManager?.getCurrentPlayerId()!);
+    }
+
+    public broadcastOpponentHands(): void {
+        this.players.forEach(p => {
+            const opponentPlayersHands: Record<string, CardFace[]> = {};
+            const opponents = Array.from(this.players.values()).filter(op => op.id !== p.id);
+            const playerNamesObj: Record<string, string> = {};
+
+            // Build playerNames object for all players
+            this.playerNames.forEach((name, id) => {
+                playerNamesObj[id] = name;
+            });
+
+            opponents.forEach(op => {
+                // Each player should only see the inactive card faces of the opponents hands (without the id's)
+                opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, this.isLightSideActive));
+            });
+
+            p.sendMessage({
+                type: 'OPPONENT_HAND',
+                opponentHands: opponentPlayersHands,
+                playerNames: playerNamesObj
+            });
+        });
     }
 }

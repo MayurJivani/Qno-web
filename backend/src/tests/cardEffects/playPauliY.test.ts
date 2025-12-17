@@ -78,7 +78,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
 
     let cardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
-    let player1PlayCard: Card = new Card({ colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
+    let player1PlayCard: Card = new Card(1, { colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
 
     // Play card
     player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: player1PlayCard });
@@ -86,8 +86,21 @@ test('Each player should receive correct hand and opponent hand', async () => {
         player1.waitFor('DISCARD_PILE_TOP')
     ])
 
-    cardOnTopOfDiscardPile = newDiscardPileTop.card;
-    let player2PlayCard: Card = new Card({ colour: Colours.Light.Blue, value: "9" }, { colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Dark.Pauli_Y });
+    // After Pauli X, side is now dark (isLightSideActive = false)
+    // So we need to wait for the CARD_EFFECT to know the side has flipped
+    await Promise.all([
+        player1.waitFor('CARD_EFFECT'),
+        player2.waitFor('CARD_EFFECT'),
+        player3.waitFor('CARD_EFFECT')
+    ]);
+
+    // Get the new discard pile top after side flip
+    const newDiscardPileTopAfterFlip = await player1.waitFor('DISCARD_PILE_TOP');
+    cardOnTopOfDiscardPile = newDiscardPileTopAfterFlip.card;
+    
+    // Now create a card that matches the NEW discard pile (dark side active)
+    // Since dark side is now active, the card's dark side should match
+    let player2PlayCard: Card = new Card(2, { colour: Colours.Light.Blue, value: "9" }, { colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Dark.Pauli_Y });
 
     player2.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player2Id, card: player2PlayCard });
     const [serverAcknowledgement,

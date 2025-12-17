@@ -65,14 +65,14 @@ test('Each player should receive correct hand and opponent hand', async () => {
     ]);
 
     const P1ActiveFaces: CardFace[] = [];
-    yourHandP2.hand.forEach((card: Card) => {
+    yourHandP2.hand.cards.forEach((card: Card) => {
         const activeCardFace = CardUtils.getActiveFace(card, true);
         P1ActiveFaces.push(activeCardFace);
     })
 
     const cardOnTopOfDiscardPile = discardPileTopP1.card;
     let playCard: Card | undefined;
-    for (const card of yourHandP1.hand) {
+    for (const card of yourHandP1.hand.cards) {
 
         const activeCardFace = CardUtils.getActiveFace(card, true);
 

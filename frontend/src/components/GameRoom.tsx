@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { Card } from '../models/Card';
 import { CardFace } from '../enums/cards/CardFace';
 import { Hand } from '../models/Hand';
-import { ColourUtils } from '../utils/ColourUtil';
+import RoomCreationForm from './RoomCreationForm';
+import EffectNotifications from './EffectNotifications';
+import PlayableCardModal from './PlayableCardModal';
+import GameBoard from './GameBoard';
 
 interface WSMessage {
   type: string;
@@ -11,35 +14,6 @@ interface WSMessage {
 }
 
 
-const CardComponent: React.FC<{
-  card: Card;
-  isLightSideActive?: boolean;
-  onClick?: () => void;
-}> = ({ card, isLightSideActive, onClick }) => {
-  let cardFaceToShow: CardFace | undefined;
-
-  if (isLightSideActive) {
-    cardFaceToShow = card.lightSide ?? card.darkSide;
-  } else {
-    cardFaceToShow = card.darkSide ?? card.lightSide;
-  }
-
-  if (!cardFaceToShow) {
-    // fallback UI if both sides are missing, or return null etc.
-    return <div className="w-16 h-24 rounded-xl bg-gray-500 flex items-center justify-center">?</div>;
-  }
-
-  return (
-    <div
-      onClick={onClick}
-      className="w-16 h-24 rounded-xl shadow-lg text-white font-bold text-sm flex items-center justify-center text-center px-1 py-1 cursor-pointer select-none transition-transform transform hover:scale-110 overflow-hidden leading-tight break-words"
-      style={{ backgroundColor: ColourUtils.ColourHexValues[cardFaceToShow.colour] }}
-    >
-      {cardFaceToShow.value}
-    </div>
-  );
-
-};
 
 
 
@@ -47,8 +21,9 @@ const GameRoom: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [inputRoomId, setInputRoomId] = useState('');
+  const [inputPlayerName, setInputPlayerName] = useState<string>('');
+  const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
-  const [allReady, setAllReady] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [myHand, setMyHand] = useState<Hand>(new Hand());
@@ -59,76 +34,107 @@ const GameRoom: React.FC = () => {
   const [drawTop, setDrawTop] = useState<CardFace | null>(null);
   const [discardTop, setDiscardTop] = useState<CardFace | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [effectNotification, setEffectNotification] = useState<{ message: string; type: string } | null>(null);
+  const [isTeleportationMode, setIsTeleportationMode] = useState(false);
+  const [turnDirection, setTurnDirection] = useState<'clockwise' | 'anti-clockwise'>('clockwise');
+  const [discardPileShake, setDiscardPileShake] = useState(false);
+  const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
 
+  // Use refs for values used in callbacks to avoid dependency issues
+  const isLightSideActiveRef = useRef(isLightSideActive);
+  const playerIdRef = useRef(playerId);
+  const inputPlayerNameRef = useRef(inputPlayerName);
 
   useEffect(() => {
-    setAllReady(players.length > 0 && players.every(id => readyPlayers.has(id)));
-  }, [players, readyPlayers]);
+    isLightSideActiveRef.current = isLightSideActive;
+  }, [isLightSideActive]);
 
-  const resetGame = () => {
-    setRoomId(null);
-    setPlayerId(null);
-    setInputRoomId('');
-    setReady(false);
-    setAllReady(false);
-    setIsHost(false);
-    setGameStarted(false);
-    setMyHand(new Hand());
-    setOpponentDecks({});
-    setPlayers([]);
-    setReadyPlayers(new Set());
-    setDrawTop(null);
-    setDiscardTop(null);
-  };
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
+
+  useEffect(() => {
+    inputPlayerNameRef.current = inputPlayerName;
+  }, [inputPlayerName]);
+
+  const allReady = useMemo(() => {
+    return players.length > 0 && players.every(id => readyPlayers.has(id));
+  }, [players, readyPlayers]);
 
   function isJoinedRoomMessage(msg: WSMessage): msg is WSMessage & { roomId: string; playerId: string } {
     return typeof msg.roomId === 'string' && typeof msg.playerId === 'string';
   }
 
-  const handleSocketMessage = useCallback((data: WSMessage) => {
-    switch (data.type) {
+  const handleSocketMessage = useCallback((data: unknown) => {
+    const message = data as WSMessage;
+    setIsConnecting(false);
+    setConnectionError(null);
+    const currentIsLightSideActive = isLightSideActiveRef.current;
+    const currentPlayerId = playerIdRef.current;
+    
+    switch (message.type) {
       case 'ROOM_CREATED':
         setIsHost(true);
         break;
 
       case 'JOINED_ROOM': {
-        if (isJoinedRoomMessage(data)) {
-          setRoomId(data.roomId);
-          setPlayerId(data.playerId);
-          localStorage.setItem('roomId', data.roomId);
-          localStorage.setItem('playerId', data.playerId);
+        if (isJoinedRoomMessage(message)) {
+          setRoomId(message.roomId);
+          setPlayerId(message.playerId);
+          localStorage.setItem('roomId', message.roomId);
+          localStorage.setItem('playerId', message.playerId);
+          // Store current player's name from ref
+          const currentName = inputPlayerNameRef.current;
+          if (currentName && currentName.trim()) {
+            setPlayerNames(prev => ({ ...prev, [message.playerId]: currentName.trim() }));
+          }
         }
         break;
       }
 
 
       case 'NEW_PLAYER_JOINED': {
-        const id = data.playerId as string;
+        const id = message.playerId as string;
+        const name = (message as { playerName?: string }).playerName;
         setPlayers(prev => prev.includes(id) ? prev : [...prev, id]);
+        if (name) {
+          setPlayerNames(prev => ({ ...prev, [id]: name }));
+        }
         break;
       }
 
       case 'PLAYER_READY': {
-        const id = data.playerId as string;
+        const id = message.playerId as string;
         setReadyPlayers(prev => new Set(prev).add(id));
         break;
       }
 
       case 'GAME_STARTED':
       case 'TURN_CHANGED': {
-        const current = (data as any).currentPlayer as string;
-        setCurrentPlayerId(current);
-        if (data.type === 'GAME_STARTED') setGameStarted(true);
+        const gameData = message as { currentPlayer?: string; direction?: number; playerNames?: Record<string, string> };
+        const current = gameData.currentPlayer;
+        if (typeof current === 'string') {
+          setCurrentPlayerId(current);
+        }
+        if (gameData.direction !== undefined) {
+          setTurnDirection(gameData.direction === 1 ? 'clockwise' : 'anti-clockwise');
+        }
+        if (gameData.playerNames) {
+          setPlayerNames(gameData.playerNames);
+        }
+        if (message.type === 'GAME_STARTED') setGameStarted(true);
         break;
       }
 
       case 'YOUR_HAND': {
-        const handData: Card[] = (data as any).hand.cards
+        const handData = (message as { hand?: { cards?: Card[] } }).hand?.cards;
         if (handData && Array.isArray(handData)) {
-          setMyHand((prev: Hand) => {
-            console.log("Hand received from backend: ", prev);
-            prev.setCards(handData);
-            return prev;
+          setMyHand(() => {
+            const newHand = new Hand();
+            newHand.setCards(handData);
+            return newHand;
           });
           setGameStarted(true);
         }
@@ -136,11 +142,38 @@ const GameRoom: React.FC = () => {
       }
 
       case 'OPPONENT_HAND': {
-        const hands = data.opponentHands as Record<string, CardFace[]>;
+        const hands = message.opponentHands as Record<string, CardFace[]>;
+        const playerNamesData = (message as { playerNames?: Record<string, string> }).playerNames;
+        if (playerNamesData) {
+          setPlayerNames(prev => ({ ...prev, ...playerNamesData }));
+        }
         const parsed: Record<string, Card[]> = {};
 
+        // Extract all opponent IDs from the opponentHands keys
+        const opponentIds = Object.keys(hands);
+        
+        // Update players list: include all opponents + current player
+        // This ensures joined players see all existing players immediately
+        if (currentPlayerId) {
+          setPlayers(() => {
+            const allPlayers = [...opponentIds, currentPlayerId];
+            // Remove duplicates and maintain order
+            return Array.from(new Set(allPlayers));
+          });
+        }
+
         for (const [id, cardFaces] of Object.entries(hands)) {
-          parsed[id] = cardFaces.map(cardFace => new Card(undefined, cardFace));
+          // Map card faces to Card objects
+          // The cardFace received is the inactive face, so we need to put it in the correct side
+          parsed[id] = cardFaces.map(cardFace => {
+            // If light side is active, inactive face is dark side
+            // If dark side is active, inactive face is light side
+            if (currentIsLightSideActive) {
+              return new Card(undefined, undefined, cardFace); // dark side
+            } else {
+              return new Card(undefined, cardFace, undefined); // light side
+            }
+          });
         }
 
         setOpponentDecks(parsed); // now it's Record<string, Card[]>
@@ -150,71 +183,279 @@ const GameRoom: React.FC = () => {
 
 
       case 'CARD_DRAWN': {
-        const card: Card = data.card as any;
-        setMyHand((prev: Hand) => {
-          prev.addCard(card)
-          return prev;
-        });
+        // Backend sends both the card and the updated hand
+        // Use the hand directly to avoid duplicates
+        const handData = (message as { hand?: Card[] }).hand;
+        if (handData && Array.isArray(handData)) {
+          setMyHand(() => {
+            const newHand = new Hand();
+            newHand.setCards(handData);
+            return newHand;
+          });
+        }
+        break;
+      }
+
+      case 'PLAYABLE_CARD_DRAWN': {
+        const card = (message as { card?: Card }).card;
+        const msg = (message as { message?: string }).message || 'You drew a playable card!';
+        if (card) {
+          setPlayableCardDrawn({ card, message: msg });
+        }
         break;
       }
 
       case 'OPPONENT_DREW_CARD': {
-        const { opponentId, card } = data as any;
-        setOpponentDecks(prev => ({
-          ...prev,
-          [opponentId]: [
-            ...(prev[opponentId] || []),
-            new Card(undefined, card) // ✅ store as Card object, not OpponentCard
-          ]
-        }));
+        // The backend will send OPPONENT_HAND to update the full hand state
+        // We can still use this for any immediate UI feedback if needed
+        // But the OPPONENT_HAND handler will ensure the correct state
         break;
       }
 
       case 'PLAYED_CARD': {
-        const cardFace: CardFace = data.card as any;
+        const cardFace = (message as { card?: CardFace }).card;
+        if (!cardFace) break;
         let cardInstance: Card;
-        if(isLightSideActive) {
+        if(currentIsLightSideActive) {
           cardInstance = new Card(undefined, cardFace, undefined)
         } else {
           cardInstance = new Card(undefined, undefined, cardFace)
         }
-        setMyHand(prevHand => {
+        setMyHand((prevHand: Hand) => {
           const newHand = new Hand();
           newHand.setCards(prevHand.getCards());  
-          newHand.removeCard(cardInstance, isLightSideActive);
+          newHand.removeCard(cardInstance, currentIsLightSideActive);
           return newHand;
         });
         break;
       }
 
+      case 'OPPONENT_PLAYED_CARD': {
+        // The backend will send OPPONENT_HAND to update the full hand state
+        // We can still use this for any immediate UI feedback if needed
+        // But the OPPONENT_HAND handler will ensure the correct state
+        break;
+      }
+
+
+      case 'GAME_END': {
+        const gameEndData = message as { winnerId?: string; message?: string };
+        setGameStarted(false);
+        if (gameEndData.winnerId === currentPlayerId) {
+          setEffectNotification({ message: '🎉 You Won! 🎉', type: 'victory' });
+        } else {
+          setEffectNotification({ message: `🏆 ${gameEndData.message || 'Game Over!'}`, type: 'gameEnd' });
+        }
+        // Keep notification longer for game end
+        setTimeout(() => setEffectNotification(null), 5000);
+        break;
+      }
+
+      case 'CARD_EFFECT': {
+        const effectData = message as { 
+          effect?: string; 
+          isLightSideActive?: boolean; 
+          direction?: string;
+          teleportation?: {
+            cardTeleportedFromPlayerId?: string;
+            cardTeleportedToPlayerId?: string;
+            cardTeleported?: number;
+          };
+        };
+        
+        // Handle side flip effects (Pauli X, Pauli Y)
+        if (typeof effectData.isLightSideActive === 'boolean') {
+          setIsLightSideActive(effectData.isLightSideActive);
+          if (effectData.effect === 'Pauli_X') {
+            setEffectNotification({ message: '🔀 Side Flipped!', type: 'flip' });
+            setTimeout(() => setEffectNotification(null), 2000);
+          } else if (effectData.effect === 'Pauli_Y') {
+            setEffectNotification({ message: '🔀 Side Flipped & Direction Reversed!', type: 'flip' });
+            setTimeout(() => setEffectNotification(null), 2000);
+          }
+        }
+        
+        // Handle direction change (Pauli Z, Pauli Y)
+        if (effectData.direction !== undefined) {
+          const dirValue = typeof effectData.direction === 'number' ? effectData.direction : 
+            (String(effectData.direction) === '1' || effectData.direction === 'clockwise' ? 1 : -1);
+          const newDirection = dirValue === 1 ? 'clockwise' : 'anti-clockwise';
+          setTurnDirection(newDirection);
+          if (effectData.effect === 'Pauli_Z') {
+            setEffectNotification({ message: `🔄 Turn Direction: ${newDirection === 'clockwise' ? '→ Clockwise' : '← Anti-clockwise'}`, type: 'direction' });
+            setTimeout(() => setEffectNotification(null), 2000);
+          }
+        }
+        
+        // Handle Measurement effect
+        if (effectData.effect === 'Measurement') {
+          setEffectNotification({ message: '📏 Measurement: Card Revealed!', type: 'measurement' });
+          setDiscardPileShake(true);
+          setTimeout(() => setDiscardPileShake(false), 500);
+          setTimeout(() => setEffectNotification(null), 2000);
+        }
+        
+        // Handle Colour Superposition effect
+        if (effectData.effect === 'Colour_Superposition') {
+          setEffectNotification({ message: '🌈 Colour Superposition: New Card Revealed!', type: 'superposition' });
+          setDiscardPileShake(true);
+          setTimeout(() => setDiscardPileShake(false), 500);
+          setTimeout(() => setEffectNotification(null), 2000);
+        }
+        
+        // Handle Superposition effect
+        if (effectData.effect === 'Superposition') {
+          setEffectNotification({ message: '⚛️ Superposition: Waiting for Measurement...', type: 'superposition' });
+          setTimeout(() => setEffectNotification(null), 2000);
+        }
+        
+        // Handle Teleportation completion
+        if (effectData.teleportation) {
+          const { cardTeleportedToPlayerId, cardTeleportedFromPlayerId, cardTeleported } = effectData.teleportation;
+          if (cardTeleportedToPlayerId === currentPlayerId) {
+            setEffectNotification({ message: '✨ Card Teleported to Your Hand!', type: 'teleportation' });
+          } else {
+            setEffectNotification({ message: '✨ A Card Was Teleported!', type: 'teleportation' });
+          }
+          setIsTeleportationMode(false);
+          // Remove the teleported card from the opponent's hand immediately
+          if (cardTeleportedFromPlayerId && cardTeleportedFromPlayerId !== currentPlayerId && cardTeleported) {
+            setOpponentDecks(prev => {
+              const updated = { ...prev };
+              if (updated[cardTeleportedFromPlayerId]) {
+                updated[cardTeleportedFromPlayerId] = updated[cardTeleportedFromPlayerId].filter(
+                  (c: Card) => c.id !== cardTeleported
+                );
+              }
+              return updated;
+            });
+          }
+          setTimeout(() => setEffectNotification(null), 2000);
+          // Opponent hands will be refreshed by backend via OPPONENT_HAND message to hide IDs
+        }
+        break;
+      }
+
+      case 'AWAITING_TELEPORTATION_TARGET': {
+        setIsTeleportationMode(true);
+        const teleportMsg = (message as { message?: string }).message || 'Select a card from an opponent to teleport.';
+        setEffectNotification({ message: `🎯 ${teleportMsg}`, type: 'teleportation' });
+        break;
+      }
+
+      case 'REFRESH_OPPONENT_HAND': {
+        const hands = (message as { opponentHands?: Record<string, Card[]> }).opponentHands;
+        if (hands) {
+          const parsed: Record<string, Card[]> = {};
+          for (const [id, cards] of Object.entries(hands)) {
+            // Cards from REFRESH_OPPONENT_HAND have IDs and the inactive face populated
+            // When light side is active, darkSide is populated and lightSide is empty
+            // When dark side is active, lightSide is populated and darkSide is empty
+            parsed[id] = cards.map((card: Card) => {
+              // The backend sends Card objects with id and one face populated
+              // We need to preserve both the ID and the face structure
+              const cardId = card.id !== undefined && card.id !== null ? card.id : undefined;
+              const lightSide = card.lightSide?.colour && card.lightSide?.value ? card.lightSide : undefined;
+              const darkSide = card.darkSide?.colour && card.darkSide?.value ? card.darkSide : undefined;
+              return new Card(cardId, lightSide, darkSide);
+            });
+          }
+          setOpponentDecks(parsed);
+        }
+        break;
+      }
 
       case 'DRAW_PILE_TOP':
-        setDrawTop(data.card as CardFace);
+        setDrawTop(message.card as CardFace);
         break;
 
       case 'DISCARD_PILE_TOP':
-        setDiscardTop(data.card as CardFace);
+        setDiscardTop(message.card as CardFace);
         break;
 
       case 'LEFT_ROOM':
         alert('Left the room.');
-        resetGame();
+        // Reset game state
+        setRoomId(null);
+        setPlayerId(null);
+        setInputRoomId('');
+        setInputPlayerName('');
+        setReady(false);
+        setIsHost(false);
+        setGameStarted(false);
+        setMyHand(new Hand());
+        setOpponentDecks({});
+        setPlayerNames({});
+        setPlayers([]);
+        setReadyPlayers(new Set());
+        setDrawTop(null);
+        setDiscardTop(null);
+        setIsTeleportationMode(false);
+        setEffectNotification(null);
         break;
 
-      case 'ERROR':
-        alert(data.message as string);
+      case 'ERROR': {
+        const errorMessage = message.message as string;
+        setConnectionError(errorMessage);
+        setIsConnecting(false);
+        // Only alert for connection errors, not game errors
+        if (errorMessage.includes('connect') || errorMessage.includes('connection')) {
+          alert(errorMessage);
+        }
         break;
+      }
+      case 'CONNECTED': {
+        setIsConnecting(false);
+        setConnectionError(null);
+        break;
+      }
     }
-  }, []);
+  }, []); // No dependencies needed - using refs for dynamic values
 
   const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage);
 
-  const handleCreateRoom = () => connect({ type: 'CREATE_ROOM' });
-  const handleJoinRoom = () => connect({ type: 'JOIN_ROOM', roomId: inputRoomId });
+  const handleCreateRoom = useCallback(() => {
+    if (!inputPlayerName.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+    setIsConnecting(true);
+    connect({ type: 'CREATE_ROOM', playerName: inputPlayerName.trim() });
+  }, [connect, inputPlayerName]);
+
+  const handleJoinRoom = useCallback(() => {
+    if (!inputRoomId.trim()) {
+      alert('Please enter a room ID');
+      return;
+    }
+    if (!inputPlayerName.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+    setIsConnecting(true);
+    connect({ type: 'JOIN_ROOM', roomId: inputRoomId, playerName: inputPlayerName.trim() });
+  }, [connect, inputRoomId, inputPlayerName]);
   const handleLeaveRoom = () => {
     sendMessage({ type: 'LEFT_ROOM', roomId, playerId });
     disconnect();
-    resetGame();
+    // Reset game state
+    setRoomId(null);
+    setPlayerId(null);
+    setInputRoomId('');
+    setInputPlayerName('');
+    setReady(false);
+    setIsHost(false);
+    setGameStarted(false);
+    setMyHand(new Hand());
+    setOpponentDecks({});
+    setPlayerNames({});
+    setPlayers([]);
+    setReadyPlayers(new Set());
+    setDrawTop(null);
+    setDiscardTop(null);
+    setIsTeleportationMode(false);
+    setEffectNotification(null);
+    setPlayableCardDrawn(null);
   };
   const handleReady = () => {
     setReady(true);
@@ -222,165 +463,164 @@ const GameRoom: React.FC = () => {
   };
   const handleStartGame = () => sendMessage({ type: 'START_GAME', roomId, playerId });
   const handlePlayCard = (card: Card) => {
-    console.log(myHand)
     sendMessage({ type: 'PLAY_CARD', roomId, playerId, card });
   };
   const handleDrawCard = () => sendMessage({ type: 'DRAW_CARD', roomId, playerId });
 
-  const renderCardOnTopOfDrawPile = (cardFace: CardFace | null) => (
-    cardFace && (
-      <div className="mb-4">
-        <h3 className="font-semibold">{'Draw Pile Top:'}</h3>
-        <div className="flex justify-center">
-          <CardComponent
-            card={isLightSideActive ? new Card(undefined, undefined, cardFace) : new Card(undefined, cardFace, undefined)}
-            isLightSideActive={isLightSideActive}
-          />
-        </div>
-      </div>
-    )
-  );
+  const handleDrawnCardDecision = (decision: 'PLAY' | 'KEEP') => {
+    if (roomId && playerId) {
+      sendMessage({ type: 'DRAWN_CARD_DECISION', roomId, playerId, decision });
+      setPlayableCardDrawn(null);
+    }
+  };
 
-  const renderCardOnTopOfDiscardPile = (cardFace: CardFace | null) => (
-    cardFace && (
-      <div className="mb-4">
-        <h3 className="font-semibold">{'Discard Pile Top:'}</h3>
-        <div className="flex justify-center">
-          <CardComponent
-            card={!isLightSideActive ? new Card(undefined, undefined, cardFace) : new Card(undefined, cardFace, undefined)}
-            isLightSideActive={isLightSideActive}
-          />
-        </div>
-      </div>
-    )
-  );
+  const getPlayerPosition = useCallback((index: number, totalPlayers: number) => {
+    if (totalPlayers === 2) {
+      return index === 0 ? 'top-center' : 'bottom-center';
+    } else if (totalPlayers === 3) {
+      return index === 0 ? 'top-left' : index === 1 ? 'top-right' : 'bottom-center';
+    } else {
+      return index === 0 ? 'top-left' : index === 1 ? 'top-right' : index === 2 ? 'mid-right' : 'bottom-center';
+    }
+  }, []);
+
+  // Sort players: current player last, others in order
+  const sortedPlayerIds = useMemo(() => {
+    if (!playerId) return players;
+    const others = players.filter(id => id !== playerId);
+    return [...others, playerId];
+  }, [players, playerId]);
 
   return (
-    <div className="min-h-screen text-white p-6 text-center">
-      <h1 className="text-3xl font-bold mb-4">Qno Game Room</h1>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Grid background */}
+      <div className="qno-grid-bg"></div>
+
+      {/* Header */}
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-50">
+        <div className="flex items-center gap-4">
+          {gameStarted && (
+            <div className={`inline-block px-4 py-2 rounded-lg font-bold text-lg shadow-2xl ${
+              playerId === currentPlayerId ? 'bg-yellow-400 text-black animate-pulse' : 'bg-gray-600 text-white'
+            }`}>
+              {playerId === currentPlayerId ? '🔄 Your Turn' : '⏳ Waiting...'}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          {gameStarted && (
+            <div className="bg-black/50 px-4 py-2 rounded-lg font-semibold text-white text-sm">
+              {turnDirection === 'clockwise' ? '➡️' : '⬅️'} {turnDirection === 'clockwise' ? 'CW' : 'CCW'}
+            </div>
+          )}
+          {roomId && (
+            <>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(roomId ?? '');
+                  alert('Room ID copied!');
+                }}
+                className="text-xs sm:text-sm text-white/80 hover:text-white bg-black/30 px-3 py-1 rounded transition-all"
+              >
+                Room: {roomId?.substring(0, 8)}...
+              </button>
+              <button
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold transition-all shadow-lg text-sm"
+                onClick={handleLeaveRoom}
+              >
+                Leave
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
       {roomId ? (
         <>
-          <p
-            className="text-sm mb-1 cursor-pointer hover:underline"
-            onClick={() => {
-              navigator.clipboard.writeText(roomId ?? '');
-              alert('Room ID copied to clipboard!');
-            }}
-          >
-            Room ID: {roomId}
-          </p>
-          <p className="text-sm mb-3">
-            Player ID: {playerId} {playerId === currentPlayerId && '(Your Turn)'}
-          </p>
-
-
-          <button className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded mb-4" onClick={handleLeaveRoom}>
-            Leave Room
-          </button>
-
           {gameStarted ? (
             <>
-              <h2 className="text-xl mb-2 font-semibold">Game Started!</h2>
-              <button
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded mb-6"
-                onClick={() => setIsLightSideActive(prev => !prev)}
-              >
-                Flip Cards ({isLightSideActive ? 'Light' : 'Dark'} cardFace Up)
-              </button>
-
-              {renderCardOnTopOfDiscardPile(discardTop)}
-              {renderCardOnTopOfDrawPile(drawTop)}
-
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold">Opponent’s Cards:</h3>
-                {Object.entries(opponentDecks).map(([id, cards]) => (
-                  <div key={id} className="mb-4">
-                    <p className="text-sm mb-2">
-                      Opponent ID: {id}
-                      {id === currentPlayerId && ' (Playing)'}
-                    </p>
-
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {cards.map((card, i) => (
-                        <CardComponent
-                          key={card.id ?? i}
-                          card={card}
-                          isLightSideActive={!isLightSideActive}
-                          onClick={() => {
-                            if (playerId === currentPlayerId) handlePlayCard(card);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold">Your Cards:</h3>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {myHand.getCards().map((card, i) => (
-                    <CardComponent
-                      key={card.id ?? i}
-                      card={card}
-                      isLightSideActive={isLightSideActive}
-                      onClick={() => {
-                        if (playerId === currentPlayerId) handlePlayCard(card);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button
-                className={`px-4 py-2 rounded font-semibold ${playerId !== currentPlayerId ? 'bg-gray-500 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'}`}
-
-                onClick={handleDrawCard}
-                disabled={playerId !== currentPlayerId}
-              >
-                Draw Card
-              </button>
+              <EffectNotifications
+                effectNotification={effectNotification}
+                isTeleportationMode={isTeleportationMode}
+              />
+              <GameBoard
+                sortedPlayerIds={sortedPlayerIds}
+                playerId={playerId}
+                playerNames={playerNames}
+                currentPlayerId={currentPlayerId}
+                myHand={myHand}
+                opponentDecks={opponentDecks}
+                isLightSideActive={isLightSideActive}
+                discardTop={discardTop}
+                drawTop={drawTop}
+                discardPileShake={discardPileShake}
+                turnDirection={turnDirection}
+                isTeleportationMode={isTeleportationMode}
+                getPlayerPosition={getPlayerPosition}
+                onPlayCard={handlePlayCard}
+                onDrawCard={handleDrawCard}
+                onTeleportationSelect={(card, fromPlayerId) => {
+                  sendMessage({
+                    type: 'TELEPORTATION_SELECT',
+                    roomId,
+                    playerId,
+                    fromPlayerId,
+                    card: {
+                      id: card.id,
+                      lightSide: card.lightSide,
+                      darkSide: card.darkSide
+                    }
+                  });
+                  setIsTeleportationMode(false);
+                  setEffectNotification(null);
+                }}
+              />
+              <PlayableCardModal
+                playableCardDrawn={playableCardDrawn}
+                isLightSideActive={isLightSideActive}
+                onDecision={handleDrawnCardDecision}
+              />
             </>
           ) : (
-            <div className="mt-4">
+            <div className="mt-20 space-y-4 flex flex-col items-center relative z-50">
               {!ready && (
                 <button
-                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
+                  className="bg-green-600 hover:bg-green-700 active:bg-green-800 px-6 py-3 rounded-lg font-bold text-lg transition-colors shadow-lg"
                   onClick={handleReady}
                 >
-                  Ready
+                  ✅ Ready
                 </button>
               )}
-              {ready && <p className="mt-2">Waiting for opponent...</p>}
+              {ready && (
+                <p className="mt-2 text-yellow-300 font-semibold">
+                  ⏳ Waiting for opponent{players.length > 1 ? 's' : ''}...
+                  <span className="block text-sm text-gray-300 mt-1">
+                    ({readyPlayers.size}/{players.length} ready)
+                  </span>
+                </p>
+              )}
               {isHost && ready && allReady && (
                 <button
-                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded font-semibold"
+                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 px-6 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:scale-105"
                   onClick={handleStartGame}
                 >
-                  Start Game
+                  🚀 Start Game
                 </button>
               )}
             </div>
           )}
         </>
       ) : (
-        <div className="flex flex-col items-center gap-2">
-          <button className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded font-semibold" onClick={handleCreateRoom}>
-            Create Room
-          </button>
-          <input
-            type="text"
-            className="rounded p-2 text-white w-64"
-            placeholder="Enter Room ID"
-            value={inputRoomId}
-            onChange={(e) => setInputRoomId(e.target.value)}
-          />
-          <button className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded font-semibold" onClick={handleJoinRoom}>
-            Join Room
-          </button>
-        </div>
+        <RoomCreationForm
+          inputPlayerName={inputPlayerName}
+          inputRoomId={inputRoomId}
+          isConnecting={isConnecting}
+          connectionError={connectionError}
+          onPlayerNameChange={setInputPlayerName}
+          onRoomIdChange={setInputRoomId}
+          onCreateRoom={handleCreateRoom}
+          onJoinRoom={handleJoinRoom}
+        />
       )}
     </div>
   );

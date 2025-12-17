@@ -79,7 +79,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
     let cardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
 
-    let player1PlayCard: Card = new Card({ colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
+    let player1PlayCard: Card = new Card(1, { colour: cardOnTopOfDiscardPile.colour, value: ActionCards.Light.Pauli_X }, { colour: Colours.Dark.Orange, value: "9" });
     // Player 1 plays card
     player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: player1PlayCard });
     let [newDiscardPileTopP1] = await Promise.all([
@@ -87,7 +87,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
     ])
     cardOnTopOfDiscardPile = newDiscardPileTopP1.card;
 
-    let player2PlayCard: Card = new Card({ colour: Colours.Light.Blue, value: "9" }, { colour: Colours.WildCard.Black, value: ActionCards.WildCard.Superposition });
+    let player2PlayCard: Card = new Card(2, { colour: Colours.Light.Blue, value: "9" }, { colour: Colours.WildCard.Black, value: ActionCards.WildCard.Superposition });
     // Player 2 plays card
     player2.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player2Id, card: player2PlayCard });
     let [newDiscardPileTopP2] = await Promise.all([
@@ -95,7 +95,7 @@ test('Each player should receive correct hand and opponent hand', async () => {
     ])
     cardOnTopOfDiscardPile = newDiscardPileTopP2.card;
 
-    let player3PlayCard: Card = new Card({ colour: Colours.Light.Blue, value: "9" }, { colour: Colours.WildCard.Black, value: ActionCards.WildCard.Measurement });
+    let player3PlayCard: Card = new Card(3, { colour: Colours.Light.Blue, value: "9" }, { colour: Colours.WildCard.Black, value: ActionCards.WildCard.Measurement });
     // Player 3 plays card
     player3.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player3Id, card: player3PlayCard });
     let [newDiscardPileTopP3] = await Promise.all([

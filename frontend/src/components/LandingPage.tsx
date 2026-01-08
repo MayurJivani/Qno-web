@@ -20,11 +20,11 @@ export default function LandingPage() {
   };
 
   const dummyCards = [
-    new Card({ colour: "Red", value: "5" }, { colour: "Pink", value: "Draw 1" }),
-    new Card({ colour: "Blue", value: "6" }, { colour: "Teal", value: "Skip" }),
-    new Card({ colour: "Green", value: "7" }, { colour: "Purple", value: "Reverse" }),
-    new Card({ colour: "Yellow", value: "8" }, { colour: "Orange", value: "Wild" }),
-    new Card({ colour: "Black", value: "Wild" }, { colour: "Black", value: "Flip" }),
+    new Card(undefined, { colour: "Red", value: "5" }, { colour: "Pink", value: "Draw 1" }),
+    new Card(undefined, { colour: "Blue", value: "6" }, { colour: "Teal", value: "Skip" }),
+    new Card(undefined, { colour: "Green", value: "7" }, { colour: "Purple", value: "Reverse" }),
+    new Card(undefined, { colour: "Yellow", value: "8" }, { colour: "Orange", value: "Wild" }),
+    new Card(undefined, { colour: "Black", value: "Wild" }, { colour: "Black", value: "Flip" }),
   ];
 
   return (
@@ -79,7 +79,7 @@ PLAY NOW
                   transformOrigin: "bottom center",
                 }}
               >
-                <CardComponent card={card} isLight={true} />
+                <CardComponent card={card} isLight={true} className="w-24 h-36 sm:w-24 sm:h-36" />
               </div>
             );
           })}

@@ -20,19 +20,23 @@ export default function LandingPage() {
   };
 
   const dummyCards = [
-    new Card({ colour: "Red", value: "5" }, { colour: "Pink", value: "Draw 1" }),
-    new Card({ colour: "Blue", value: "6" }, { colour: "Teal", value: "Skip" }),
-    new Card({ colour: "Green", value: "7" }, { colour: "Purple", value: "Reverse" }),
-    new Card({ colour: "Yellow", value: "8" }, { colour: "Orange", value: "Wild" }),
-    new Card({ colour: "Black", value: "Wild" }, { colour: "Black", value: "Flip" }),
+    new Card(undefined, { colour: "Red", value: "5" }, { colour: "Pink", value: "Pauli X" }),
+    new Card(undefined, { colour: "Blue", value: "6" }, { colour: "Teal", value: "Pauli Y" }),
+    new Card(undefined, { colour: "Green", value: "7" }, { colour: "Purple", value: "Pauli Z" }),
+    new Card(undefined, { colour: "Yellow", value: "8" }, { colour: "Orange", value: "Teleport" }),
+    new Card(undefined, { colour: "Black", value: "Wild" }, { colour: "Black", value: "Wild" }),
   ];
+
+  // Randomly choose one side for all cards (50/50 chance - either all light or all dark)
+  const showLightSide = Math.random() > 0.5;
+
 
   return (
     <div className="min-h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
       <MovingDotsBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
+      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4 bg-[#2b0057]/95 backdrop-blur-sm">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
           <a href="" className="hover:underline hover:text-white" onClick={handleHomeClick}>HOME</a>
           <a href="" className="hover:underline hover:text-white" onClick={handleAboutClick}>ABOUT</a>
@@ -41,7 +45,7 @@ export default function LandingPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 pt-28 sm:pt-36 px-4 max-w-6xl mx-auto ">
+      <main className="relative z-10 pt-24 sm:pt-28 px-4 max-w-6xl mx-auto pb-12">
         {/* Hero Section */}
         <section className="text-center">
           <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold mb-6 text-shadow-lg/30">
@@ -79,7 +83,16 @@ PLAY NOW
                   transformOrigin: "bottom center",
                 }}
               >
-                <CardComponent card={card} isLight={true} />
+                <div 
+                  className="retro-card-glow"
+                  style={{ '--card-index': index } as React.CSSProperties}
+                >
+                  <CardComponent 
+                    card={card} 
+                    isLight={showLightSide} 
+                    className="w-24 h-36 sm:w-24 sm:h-36" 
+                  />
+                </div>
               </div>
             );
           })}

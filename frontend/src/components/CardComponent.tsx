@@ -44,8 +44,8 @@ const CardComponent: React.FC<CardComponentProps> = ({
       <div className="absolute inset-0 rounded-sm border-2 border-white opacity-10 hover:opacity-40 transition-opacity duration-200 pointer-events-none" />
 
       <div className="z-10 flex flex-col items-center justify-center text-center w-full h-full px-0.5">
-        <span className={`uppercase drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] mb-0.5 ${hasCustomSize ? 'text-[6px] sm:text-[7px]' : 'text-[6px] sm:text-[7px]'}`}>{side.colour}</span>
-        <span className={`drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] leading-tight ${hasCustomSize ? 'text-[10px] sm:text-xs' : 'text-lg sm:text-xl'}`}>{side.value}</span>
+        <span className={`uppercase drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] mb-0.5 ${hasCustomSize ? 'text-[8px] sm:text-[10px]' : 'text-[6px] sm:text-[7px]'}`}>{side.colour}</span>
+        <span className={`drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] leading-tight ${hasCustomSize ? 'text-[8px] sm:text-[11px]' : 'text-[5px] sm:text-[6px]'}`}>{side.value}</span>
       </div>
     </div>
   );

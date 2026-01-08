@@ -23,7 +23,7 @@ export default function RulesPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 pt-28 sm:pt-24 px-4 sm:px-6 max-w-5xl mx-auto pb-12">
+      <main className="relative z-10 pt-24 sm:pt-28 px-4 sm:px-6 max-w-5xl mx-auto pb-12">
         {/* Title */}
         <motion.section
           initial={{ opacity: 0, y: -20 }}

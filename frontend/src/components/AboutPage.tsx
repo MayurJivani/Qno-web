@@ -13,7 +13,7 @@ export default function AboutPage() {
   const developers = [
     {
       bio: "Sentient Brainrot",
-      skills: "Monster drank - 4",
+      skills: "Monster drank - 5",
       quote: "Listening Peter cat recoring co.",
       image: "/MayurXD.png",
     },
@@ -26,7 +26,7 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="min-h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
+    <div className="h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
       <MovingDotsBackground />
 
       {/* Header */}
@@ -39,10 +39,10 @@ export default function AboutPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 pt-28 sm:pt-20 px-4 max-w-4xl mx-auto">
+      <main className="relative z-10 pt-28 sm:pt-28 px-4 max-w-4xl mx-auto">
         {/* Hero Section */}
-        <section className="text-center mb-10">
-          <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold mb-6 text-shadow-lg/30">
+        <section className="text-center">
+          <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold text-shadow-lg/30">
             Meet the Dev'z
           </h1>
         </section>
@@ -74,7 +74,7 @@ export default function AboutPage() {
               </div>
 
               {/* Info */}
-              <div className="mt-6 text-center">
+              <div className="mt-4 text-center">
                 <p className="text-lg text-yellow-300 mb-1">{dev.bio}</p>
                 <p className="text-sm text-white mb-2">{dev.skills}</p>
                 <TypeAnimation

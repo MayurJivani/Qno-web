@@ -3,8 +3,36 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec ts-node src/app.ts"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "generateDrawPileTest": "jest tests/game/generateDrawPile.test.ts",
+    "setupWebSocketTest": "jest tests/websocket/setupWebsocket.test.ts",
+    "createRoomTest": "jest tests/websocket/createRoom.test.ts",
+    "joinRoomTest": "jest tests/websocket/joinRoom.test.ts",
+    "playerDisconnectBroadcastTest": "jest tests/websocket/playerDisconnectBroadcast.test.ts",
+    "playerDisconnectRoomDeleteTest": "jest tests/websocket/playerDisconnectRoomDelete.test.ts",
+    "playerReadyTest": "jest tests/websocket/playerReady.test.ts",
+    "gameStartTest": "jest tests/websocket/gameStart.test.ts",
+    "dealCardsTest": "jest tests/websocket/dealCards.test.ts",
+    "cardPlayTest": "jest tests/websocket/cardPlay.test.ts",
+    "drawCardTest": "jest tests/websocket/drawCard.test.ts",
+    "playPauliXTest": "jest tests/cardEffects/playPauliX.test.ts",
+    "playPauliYTest": "jest tests/cardEffects/playPauliY.test.ts",
+    "playPauliZTest": "jest tests/cardEffects/playPauliZ.test.ts",
+    "playMeasurementTest": "jest tests/cardEffects/playMeasurement.test.ts",
+    "playSuperpositionAndMeasurementTest": "jest tests/cardEffects/playSuperpositionAndMeasurement.test.ts",
+    "playColourSuperpositionTest": "jest tests/cardEffects/playColourSuperposition.test.ts",
+    "playTeleportationBlockedTest": "jest tests/cardEffects/playTeleportationBlocked.test.ts",
+    "playTeleportationSelectionTest": "jest tests/cardEffects/playTeleportationSelection.test.ts",
+    "winConditionTest": "jest tests/game/winCondition.test.ts",
+    "errorHandlingTest": "jest tests/validation/errorHandling.test.ts",
+    "invalidCardPlayTest": "jest tests/validation/invalidCardPlay.test.ts",
+    "turnValidationTest": "jest tests/validation/turnValidation.test.ts",
+    "edgeCasesTest": "jest tests/edgeCases/edgeCases.test.ts",
+    "stateSynchronizationTest": "jest tests/state/stateSynchronization.test.ts",
+    "turnManagementTest": "jest tests/game/turnManagement.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +50,11 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.1"
+    "@babel/preset-env": "^7.26.9",
+    "@babel/preset-typescript": "^7.27.0",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.1"
   }
 }

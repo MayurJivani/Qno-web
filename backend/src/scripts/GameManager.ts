@@ -105,6 +105,40 @@ export class GameManager {
             return;
         }
 
+        // Check if entanglement selection is in progress
+        if (room.entanglementState && room.entanglementState.status === 'AWAITING_SELECTION' 
+            && room.entanglementState.awaitingPlayerId === player.id) {
+            player.sendMessage({
+                type: 'ERROR',
+                message: 'Cannot play cards while waiting for entanglement selection. Please select 2 opponents to entangle first.'
+            });
+            return;
+        }
+
+        // Check if player is entangled and must play Measurement
+        if (player.isEntangled) {
+            const entanglementCheck = CardEffectEngine.checkEntangledPlayerTurn(room, player);
+            if (entanglementCheck.mustPlayMeasurement) {
+                const cardFacePlayed = CardUtils.getActiveFace(card, room.isLightSideActive);
+                // If they're trying to play something other than Measurement, block it
+                if (cardFacePlayed.value !== ActionCards.WildCard.Measurement) {
+                    player.sendMessage({
+                        type: 'ERROR',
+                        message: 'You are entangled! You must play your Measurement card this turn.'
+                    });
+                    return;
+                }
+                // If they're playing Measurement, proceed (entanglement collapse will be handled in handleMeasurement)
+            } else {
+                // Entangled player without Measurement card - skip turn (only allow drawing)
+                player.sendMessage({
+                    type: 'ERROR',
+                    message: 'You are entangled and do not have a Measurement card. Your turn is skipped. You can only draw a card.'
+                });
+                return;
+            }
+        }
+
         let cardFacePlayed: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
         if (CardEffectEngine.checkValidMove(card, room)) {
             // Remove the card from the player's hand if it is a valid move
@@ -136,6 +170,22 @@ export class GameManager {
             // Check win condition - if player's hand is empty, they win
             if (player.getHandCards().length === 0) {
                 GameManager.endGame(room, player);
+                return;
+            }
+
+            // Entanglement card is handled separately (like teleportation)
+            // For 2-player games, it automatically entangles both players (no selection needed)
+            // For 3-4 player games, it requires selection modal
+            if (cardFacePlayed.value == ActionCards.WildCard.Entanglement) {
+                CardEffectEngine.handleCardEffect(card, room);
+                // For 2-player games, entanglement is applied immediately in handleEntanglement
+                // so we advance turn normally. For 3-4 player games, selection is required
+                // so we don't advance turn yet (will advance after selection)
+                if (room.players.size === 2) {
+                    // Turn advances normally - handleEntanglement already applied the effect
+                    GameManager.handleRoomUpdate(room, { advanceTurn: true });
+                }
+                // For 3-4 players, turn doesn't advance yet (waiting for selection)
                 return;
             }
 
@@ -190,6 +240,11 @@ export class GameManager {
         GameManager.handleRoomUpdate(room, effectResult)
     }
 
+    public static handleEntanglementSelection(room: GameRoom, player: Player, opponent1Id: string, opponent2Id: string) {
+        const effectResult = CardEffectEngine.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
+        GameManager.handleRoomUpdate(room, effectResult);
+    }
+
     public static endGame(room: GameRoom, winner: Player): void {
         if (room.status === GameRoomStatus.FINISHED) {
             return; // Game already ended
@@ -236,6 +291,68 @@ export class GameManager {
                 message: 'Cannot draw cards while waiting for teleportation selection. Please select a card to teleport first.'
             });
             return;
+        }
+
+        // Check if entanglement selection is in progress
+        if (room.entanglementState && room.entanglementState.status === 'AWAITING_SELECTION' 
+            && room.entanglementState.awaitingPlayerId === player.id) {
+            player.sendMessage({
+                type: 'ERROR',
+                message: 'Cannot draw cards while waiting for entanglement selection. Please select 2 opponents to entangle first.'
+            });
+            return;
+        }
+
+        // Check if player is entangled - if they don't have Measurement, they must draw and skip turn
+        if (player.isEntangled) {
+            const entanglementCheck = CardEffectEngine.checkEntangledPlayerTurn(room, player);
+            if (!entanglementCheck.mustPlayMeasurement) {
+                // Entangled player without Measurement - draw 1 card and skip turn
+                if (!room.drawPileManager.getRemainingCardCount()) {
+                    player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
+                    return;
+                }
+
+                let cardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;
+                player.getHand().addCard(cardDrawn);
+                let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
+                const isMeasurementCard = cardFaceDrawn.value === ActionCards.WildCard.Measurement;
+                
+                Logger.info("CARD_DRAWN", `Entangled Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card and skipped turn in room: ${room.id}.`);
+                
+                player.sendMessage({
+                    type: 'CARD_DRAWN',
+                    card: cardDrawn,
+                    hand: player.getHandCards()
+                });
+
+                room.broadcast({
+                    type: 'OPPONENT_DREW_CARD',
+                    card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
+                    opponentId: player.id
+                }, [player.id]);
+
+                // Notify that entangled player drew and skipped turn
+                const playerName = room.playerNames.get(player.id) || player.id.substring(0, 8);
+                const notificationMessage = isMeasurementCard
+                    ? `🔗 ${playerName} is entangled - drew Measurement card and skipped turn (must play it next turn!)`
+                    : `🔗 ${playerName} is entangled - drew 1 card and skipped turn (must play Measurement if available)`;
+                    
+                room.broadcast({
+                    type: 'ENTANGLEMENT_NOTIFICATION',
+                    message: notificationMessage,
+                    notificationType: 'skip'
+                });
+
+                room.broadcastOpponentHands();
+                room.broadcastTopOfDrawPile();
+                
+                // Skip turn - advance to next player
+                this.advanceTurn(room);
+                room.broadcastTopOfDiscardPile();
+                return;
+            }
+            // If they have Measurement, they must play it (handled in playCard)
         }
 
         if (!room.drawPileManager.getRemainingCardCount()) {
@@ -330,11 +447,52 @@ export class GameManager {
 
     private static advanceTurn(room: GameRoom): void {
         if (!room.turnManager || room.status === GameRoomStatus.FINISHED) return;
-        const nextPlayer = room.turnManager.advanceTurn();
-        room.broadcast({
-            type: 'TURN_CHANGED',
-            currentPlayer: nextPlayer,
-            direction: room.turnManager.getDirection()
-        });
+        
+        // Check if there are any entangled players
+        const entangledPlayers = Array.from(room.players.values()).filter(p => p.isEntangled);
+        
+        if (entangledPlayers.length > 0 && entangledPlayers.length < room.players.size) {
+            // If there are entangled players, only advance to entangled players
+            const entangledPlayerIds = new Set(entangledPlayers.map(p => p.id));
+            let nextPlayerId = room.turnManager.advanceTurn();
+            let attempts = 0;
+            const maxAttempts = room.players.size * 2; // Safety limit
+            
+            // Skip non-entangled players one by one
+            while (!entangledPlayerIds.has(nextPlayerId) && attempts < maxAttempts) {
+                // Broadcast that this player was skipped
+                const skippedPlayer = room.players.get(nextPlayerId);
+                if (skippedPlayer) {
+                    const skippedPlayerName = room.playerNames.get(skippedPlayer.id) || skippedPlayer.id.substring(0, 8);
+                    room.broadcast({
+                        type: 'ENTANGLEMENT_NOTIFICATION',
+                        message: `⏭️ ${skippedPlayerName} skipped (not entangled) - only entangled players can play`,
+                        notificationType: 'skip'
+                    });
+                }
+                nextPlayerId = room.turnManager.advanceTurn();
+                attempts++;
+            }
+            
+            if (attempts >= maxAttempts) {
+                Logger.error(`advanceTurn: Could not find entangled player after ${maxAttempts} attempts in room: ${room.id}`);
+                // Fallback to normal turn
+                nextPlayerId = room.turnManager.getCurrentPlayerId();
+            }
+            
+            room.broadcast({
+                type: 'TURN_CHANGED',
+                currentPlayer: nextPlayerId,
+                direction: room.turnManager.getDirection()
+            });
+        } else {
+            // Normal turn advancement when no entanglement or all players are entangled
+            const nextPlayer = room.turnManager.advanceTurn();
+            room.broadcast({
+                type: 'TURN_CHANGED',
+                currentPlayer: nextPlayer,
+                direction: room.turnManager.getDirection()
+            });
+        }
     }
 }

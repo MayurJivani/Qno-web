@@ -9,6 +9,7 @@ interface FannedCardsProps {
   isSelectable?: boolean;
   fanDirection?: 'left' | 'right' | 'up';
   isFlipping?: boolean;
+  mustPlayMeasurement?: boolean;
 }
 
 const FannedCards: React.FC<FannedCardsProps> = ({ 
@@ -17,7 +18,8 @@ const FannedCards: React.FC<FannedCardsProps> = ({
   onClick,
   isSelectable = false,
   fanDirection = 'left',
-  isFlipping = false
+  isFlipping = false,
+  mustPlayMeasurement = false
 }) => {
   if (cards.length === 0) return null;
 
@@ -48,51 +50,93 @@ const FannedCards: React.FC<FannedCardsProps> = ({
               cursor: onClick || isSelectable ? 'pointer' : 'default',
               zIndex: index
             }}
-            onClick={() => onClick && onClick(card, index)}
+            onClick={() => {
+              if (mustPlayMeasurement) {
+                // Only allow clicking Measurement card when mustPlayMeasurement is true
+                const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
+                if (activeFace?.value === 'Measurement') {
+                  onClick && onClick(card, index);
+                }
+              } else {
+                onClick && onClick(card, index);
+              }
+            }}
           >
-            <div className="transition-transform duration-200 hover:-translate-y-4">
-              <div
-                className={`relative w-16 h-24 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 border-black rounded-sm transition-transform duration-150 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none ${
-                  onClick || isSelectable ? 'cursor-pointer' : 'cursor-default'
-                } ${isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''} ${isFlipping ? 'card-flip-animation' : ''}`}
-                style={{
-                  background: getPixelGradient((isLightSideActive ? card.lightSide : card.darkSide)?.colour || 'Gray'),
-                  imageRendering: "pixelated",
-                  fontFamily: "'Press Start 2P', cursive",
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
-                }}
-              >
-                <div className="absolute inset-0 rounded-sm border-2 border-white opacity-10 hover:opacity-40 transition-opacity duration-200 pointer-events-none" />
-                <div className="z-10 flex flex-col items-center justify-center text-center w-full h-full px-0.5">
-                  <span className="uppercase text-[6px] sm:text-[7px] leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] mb-0.5">
-                    {(isLightSideActive ? card.lightSide : card.darkSide)?.colour || ''}
-                  </span>
-                  <span 
-                    className={`${
-                      !isNaN(Number((isLightSideActive ? card.lightSide : card.darkSide)?.value)) 
-                        ? 'text-lg sm:text-xl' 
-                        : 'text-[8px] sm:text-[9px]'
-                    } leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] whitespace-pre-line break-words`}
-                    style={{
-                      lineHeight: '1.1',
-                      wordBreak: 'break-word',
-                      maxWidth: '100%',
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical'
-                    }}
-                  >
-                    {CardUtils.formatCardValue((isLightSideActive ? card.lightSide : card.darkSide)?.value || '')}
-                  </span>
-                </div>
+            <>
+              <div className="transition-transform duration-200 hover:-translate-y-4">
+                {(() => {
+                  const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
+                  const isMeasurement = activeFace?.value === 'Measurement';
+                  const shouldHighlight = mustPlayMeasurement && isMeasurement;
+                  const shouldDisable = mustPlayMeasurement && !isMeasurement;
+                  return (
+                    <div
+                      className={`relative w-16 h-24 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 rounded-sm transition-transform duration-150 ${
+                        shouldDisable
+                          ? 'border-gray-500 opacity-50 cursor-not-allowed'
+                          : shouldHighlight
+                            ? 'border-purple-400 ring-4 ring-purple-400 ring-offset-2 animate-pulse cursor-pointer'
+                            : onClick || isSelectable
+                              ? 'border-black hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none cursor-pointer'
+                              : 'border-black cursor-default'
+                      } ${isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''} ${isFlipping ? 'card-flip-animation' : ''}`}
+                      style={{
+                        background: getPixelGradient((isLightSideActive ? card.lightSide : card.darkSide)?.colour || 'Gray'),
+                        imageRendering: "pixelated",
+                        fontFamily: "'Press Start 2P', cursive",
+                        boxShadow: shouldHighlight
+                          ? '0 0 20px rgba(168, 85, 247, 0.8), 0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
+                          : '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
+                      }}
+                    >
+                      <div className="absolute inset-0 rounded-sm border-2 border-white opacity-10 hover:opacity-40 transition-opacity duration-200 pointer-events-none" />
+                      <div className="z-10 flex flex-col items-center justify-center text-center w-full h-full px-0.5">
+                        <span className="uppercase text-[6px] sm:text-[7px] leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] mb-0.5">
+                          {(isLightSideActive ? card.lightSide : card.darkSide)?.colour || ''}
+                        </span>
+                        <span 
+                          className={`${
+                            !isNaN(Number((isLightSideActive ? card.lightSide : card.darkSide)?.value)) 
+                              ? 'text-lg sm:text-xl' 
+                              : 'text-[8px] sm:text-[9px]'
+                          } leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] whitespace-pre-line break-words`}
+                          style={{
+                            lineHeight: '1.1',
+                            wordBreak: 'break-word',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}
+                        >
+                          {CardUtils.formatCardValue((isLightSideActive ? card.lightSide : card.darkSide)?.value || '')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
-            </div>
-            {isSelectable && card.id && (
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-black text-xs font-bold z-20 animate-pulse">
-                ✨
-              </div>
-            )}
+              {(() => {
+                const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
+                const isMeasurement = activeFace?.value === 'Measurement';
+                const shouldHighlight = mustPlayMeasurement && isMeasurement;
+                return (
+                  <>
+                    {shouldHighlight && (
+                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 animate-pulse border-2 border-white">
+                        ⚛️
+                      </div>
+                    )}
+                    {isSelectable && card.id && !shouldHighlight && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-black text-xs font-bold z-20 animate-pulse">
+                        ✨
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           </div>
         );
       })}

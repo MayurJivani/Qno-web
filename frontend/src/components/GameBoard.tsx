@@ -19,6 +19,8 @@ interface GameBoardProps {
   turnDirection: 'clockwise' | 'anti-clockwise';
   isTeleportationMode: boolean;
   isFlipping: boolean;
+  entangledPlayers?: Set<string>;
+  mustPlayMeasurement?: boolean;
   getPlayerPosition: (index: number, totalPlayers: number) => 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   onPlayCard: (card: Card) => void;
   onDrawCard: () => void;
@@ -39,6 +41,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
   turnDirection,
   isTeleportationMode,
   isFlipping,
+  entangledPlayers = new Set(),
+  mustPlayMeasurement = false,
   getPlayerPosition,
   onPlayCard,
   onDrawCard,
@@ -65,6 +69,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               isCurrentTurn={isCurrentTurn}
               isYou={isYou}
               position={position}
+              isEntangled={entangledPlayers.has(id)}
             />
           );
         }
@@ -81,7 +86,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               transform: turnDirection === 'clockwise' ? 'rotate(0deg)' : 'rotate(180deg)'
             }}
           >
-            {turnDirection === 'clockwise' ? '➡️' : '⬅️'}
+            {turnDirection === 'clockwise' ? '⬅️' : '➡️'}
           </div>
         </div>
 
@@ -200,6 +205,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 }}
                 fanDirection={playerPosition === 'top-center' ? 'left' : 'right'}
                 isFlipping={isFlipping}
+                mustPlayMeasurement={mustPlayMeasurement && playerId === currentPlayerId}
               />
             </div>
           );

@@ -23,6 +23,7 @@ const EffectNotifications: React.FC<EffectNotificationsProps> = ({
           effectNotification.type === 'teleportation' ? 'bg-indigo-600' :
           effectNotification.type === 'measurement' ? 'bg-yellow-600' :
           effectNotification.type === 'superposition' ? 'bg-pink-600' :
+          effectNotification.type === 'entanglement' ? 'bg-purple-600' :
           effectNotification.type === 'victory' ? 'bg-green-600 text-2xl font-extrabold animate-pulse' :
           effectNotification.type === 'gameEnd' ? 'bg-red-600 text-xl font-bold' :
           'bg-gray-600'

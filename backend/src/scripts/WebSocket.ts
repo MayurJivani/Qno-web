@@ -106,6 +106,14 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				}
 				handleTeleportationSelection(ws, parsed.roomId, parsed.playerId, parsed.fromPlayerId, parsed.card);
 			},
+			'ENTANGLEMENT_SELECT': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || 
+				    typeof parsed.opponent1Id !== 'string' || typeof parsed.opponent2Id !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid entanglement selection' }));
+					return;
+				}
+				handleEntanglementSelection(ws, parsed.roomId, parsed.playerId, parsed.opponent1Id, parsed.opponent2Id);
+			},
 			'DRAWN_CARD_DECISION': () => {
 				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || 
 				    typeof parsed.decision !== 'string' || !['PLAY', 'KEEP'].includes(parsed.decision)) {
@@ -292,6 +300,14 @@ const handleTeleportationSelection = (_ws: WebSocket, roomId: string, playerId: 
 	}
 	
 	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, actualCard)
+}
+
+const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: string, opponent1Id: string, opponent2Id: string) => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	const { room, player } = result;
+	
+	GameManager.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
 }
 
 const sendGameState = (ws: WebSocket) => {

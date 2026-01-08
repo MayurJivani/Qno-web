@@ -61,6 +61,49 @@ export default function RulesPage() {
             </div>
           </motion.section>
 
+          {/* Deck Composition */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-black/50 backdrop-blur-lg border border-yellow-300 rounded-xl shadow-[0_0_10px_#facc15] p-6"
+          >
+            <h2 className="text-xl sm:text-2xl text-yellow-300 mb-4">🎴 DECK COMPOSITION</h2>
+            <div className="text-xs sm:text-sm text-gray-200 leading-relaxed space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Light Side */}
+                <div className="bg-yellow-900/20 p-4 rounded border border-yellow-500">
+                  <h3 className="text-yellow-300 font-bold mb-3">Light Side</h3>
+                  <ul className="list-none space-y-1">
+                    <li>• 76 Number cards</li>
+                    <li>• 8 Pauli X</li>
+                    <li>• 8 Teleportation</li>
+                    <li>• 4 Colour Superposition</li>
+                    <li>• 8 Measurement</li>
+                    <li>• 4 Entanglement</li>
+                    <li className="mt-2 text-yellow-300 font-bold">Total: 108 cards</li>
+                  </ul>
+                </div>
+                {/* Dark Side */}
+                <div className="bg-purple-900/20 p-4 rounded border border-purple-500">
+                  <h3 className="text-purple-300 font-bold mb-3">Dark Side</h3>
+                  <ul className="list-none space-y-1">
+                    <li>• 76 Number cards</li>
+                    <li>• 8 Pauli Y</li>
+                    <li>• 8 Pauli Z</li>
+                    <li>• 4 Colour Superposition</li>
+                    <li>• 8 Measurement</li>
+                    <li>• 4 Superposition</li>
+                    <li className="mt-2 text-purple-300 font-bold">Total: 108 cards</li>
+                  </ul>
+                </div>
+              </div>
+              <p className="text-center text-gray-300">
+                <strong>216 double-sided cards total</strong>
+              </p>
+            </div>
+          </motion.section>
+
           {/* Setup */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -178,7 +221,7 @@ export default function RulesPage() {
                 </div>
               </div>
               <p className="mt-4">
-                <strong className="text-black-300">BLACK</strong> cards are wild cards and can be played on any color.
+                <strong className="text-gray-300">BLACK</strong> cards are wild cards and can be played on any color. These include: Measurement, Superposition, Entanglement, and Colour Superposition.
               </p>
             </div>
           </motion.section>
@@ -248,8 +291,11 @@ export default function RulesPage() {
               <div className="bg-black/50 p-4 rounded border border-gray-500">
                 <h3 className="text-white font-bold mb-2">Measurement</h3>
                 <p>
-                  Reveals a new card from the discard pile! Removes the card below the Measurement card 
-                  and places it on top, or if Superposition is below, reveals a new non-action card.
+                  <strong>After Superposition:</strong> Collapses the superposition by revealing a new non-action card from the draw pile, which becomes the new card to match.
+                  <br /><br />
+                  <strong>After Entanglement:</strong> Resolves entanglement with random outcome (one player draws 3, other draws 0).
+                  <br /><br />
+                  <strong>After normal cards:</strong> Reveals the card below it on the discard pile or draws a new non-action card if none exists.
                 </p>
               </div>
               <div className="bg-black/50 p-4 rounded border border-gray-500">
@@ -266,10 +312,14 @@ export default function RulesPage() {
                   This reveals a new card that players can now match!
                 </p>
               </div>
-              <div className="bg-black/50 p-4 rounded border border-red-500">
-                <h3 className="text-red-300 font-bold mb-2">Entanglement</h3>
-                <p className="text-red-400">
-                  ⚠️ <strong>Not yet implemented</strong> - This card is in the deck but will cause an error if played.
+              <div className="bg-black/50 p-4 rounded border border-gray-500">
+                <h3 className="text-white font-bold mb-2">Entanglement (Light Side Only)</h3>
+                <p>
+                  <strong>2-Player Games:</strong> The player playing Entanglement becomes entangled with their opponent. On each entangled player's turn, they MUST play a Measurement card if they have one, or draw 1 card and skip their turn. When the first Measurement is played, one entangled player draws 3 cards and the other draws 0 (random 50/50 outcome). Both players are then freed from entanglement.
+                  <br /><br />
+                  <strong>3-4 Player Games:</strong> Select 2 opponents to entangle! On each entangled player's turn, they MUST play a Measurement card if they have one, or draw 1 card and skip their turn. When the first Measurement is played, one entangled player draws 3 cards and the other draws 0 (random 50/50 outcome). Entanglement then collapses and normal play resumes.
+                  <br /><br />
+                  <span className="text-yellow-300">⚠️ Use carefully! This card can disrupt the game flow significantly. Players only draw cards when it's their turn (if they don't have Measurement).</span>
                 </p>
               </div>
             </div>
@@ -330,6 +380,18 @@ export default function RulesPage() {
                   will flip to show their other side!
                 </p>
               </div>
+              <div className="mt-4">
+                <h3 className="text-yellow-300 mb-2">Entanglement Resolution</h3>
+                <p>
+                  When Entanglement is active:
+                  <br /><br />
+                  <strong>Entangled Players:</strong> Cannot play normal cards - they MUST either play a Measurement card (if they have one) or draw 1 card and skip their turn. This continues until one entangled player plays Measurement.
+                  <br /><br />
+                  <strong>Non-Entangled Players:</strong> Their turns are automatically skipped - only entangled players can take actions during entanglement.
+                  <br /><br />
+                  <strong>Collapse:</strong> When the first Measurement card is played by an entangled player, entanglement collapses with a random 50/50 outcome: one entangled player draws 3 cards, the other draws 0 cards. Both players are then freed from entanglement and normal play resumes for all players.
+                </p>
+              </div>
             </div>
           </motion.section>
 
@@ -366,6 +428,18 @@ export default function RulesPage() {
                 <li className="flex items-start">
                   <span className="text-green-300 mr-2">💡</span>
                   <span>Keep Measurement cards handy when Superposition is played</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-300 mr-2">💡</span>
+                  <span>Entanglement can trap opponents - but be strategic about timing!</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-300 mr-2">💡</span>
+                  <span>Hold Measurement cards when Entanglement or Superposition cards are common</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-300 mr-2">💡</span>
+                  <span>Entangle players who have fewer cards - they're less likely to have Measurement</span>
                 </li>
               </ul>
             </div>

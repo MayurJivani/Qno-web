@@ -7,6 +7,7 @@ import RoomCreationForm from './RoomCreationForm';
 import EffectNotifications from './EffectNotifications';
 import PlayableCardModal from './PlayableCardModal';
 import GameBoard from './GameBoard';
+import EntanglementSelectionModal from './EntanglementSelectionModal';
 
 interface WSMessage {
   type: string;
@@ -38,6 +39,10 @@ const GameRoom: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [effectNotification, setEffectNotification] = useState<{ message: string; type: string } | null>(null);
   const [isTeleportationMode, setIsTeleportationMode] = useState(false);
+  const [isEntanglementMode, setIsEntanglementMode] = useState(false);
+  const [entanglementOpponents, setEntanglementOpponents] = useState<Array<{ id: string; name: string }>>([]);
+  const [entangledPlayers, setEntangledPlayers] = useState<Set<string>>(new Set());
+  const [mustPlayMeasurement, setMustPlayMeasurement] = useState(false);
   const [turnDirection, setTurnDirection] = useState<'clockwise' | 'anti-clockwise'>('clockwise');
   const [discardPileShake, setDiscardPileShake] = useState(false);
   const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
@@ -47,6 +52,11 @@ const GameRoom: React.FC = () => {
   const isLightSideActiveRef = useRef(isLightSideActive);
   const playerIdRef = useRef(playerId);
   const inputPlayerNameRef = useRef(inputPlayerName);
+  
+  // Notification queue system
+  const notificationQueueRef = useRef<Array<{ message: string; type: string; duration: number }>>([]);
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProcessingNotificationRef = useRef(false);
 
   useEffect(() => {
     isLightSideActiveRef.current = isLightSideActive;
@@ -64,9 +74,65 @@ const GameRoom: React.FC = () => {
     return players.length > 0 && players.every(id => readyPlayers.has(id));
   }, [players, readyPlayers]);
 
+
   function isJoinedRoomMessage(msg: WSMessage): msg is WSMessage & { roomId: string; playerId: string } {
     return typeof msg.roomId === 'string' && typeof msg.playerId === 'string';
   }
+
+  // Function to process notification queue - using ref to avoid closure issues
+  const processNotificationQueueRef = useRef<() => void>(() => {});
+  
+  // Function to add notification to queue - using ref to avoid closure issues
+  const queueNotificationRef = useRef<(message: string, type: string, duration: number) => void>();
+  
+  // Initialize the process function
+  processNotificationQueueRef.current = () => {
+    if (isProcessingNotificationRef.current) {
+      return; // Already processing, will be triggered when current notification finishes
+    }
+
+    if (notificationQueueRef.current.length === 0) {
+      return; // No notifications in queue
+    }
+
+    const nextNotification = notificationQueueRef.current.shift();
+    if (!nextNotification) {
+      return;
+    }
+
+    console.log('Processing notification:', nextNotification.message); // Debug log
+    isProcessingNotificationRef.current = true;
+    setEffectNotification({ message: nextNotification.message, type: nextNotification.type });
+
+    // Clear any existing timeout
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+
+    // Set timeout to process next notification
+    notificationTimeoutRef.current = setTimeout(() => {
+      setEffectNotification(null);
+      isProcessingNotificationRef.current = false;
+      // Process next notification after a short delay
+      setTimeout(() => {
+        processNotificationQueueRef.current();
+      }, 300);
+    }, nextNotification.duration);
+  };
+  
+  // Initialize the queue function
+  queueNotificationRef.current = (message: string, type: string, duration: number = 3000) => {
+    console.log('Queueing notification:', message, 'Type:', type, 'Duration:', duration); // Debug log
+    notificationQueueRef.current.push({ message, type, duration });
+    processNotificationQueueRef.current();
+  };
+
+  // Stable wrapper for use in callbacks
+  const queueNotification = useCallback((message: string, type: string, duration: number = 3000) => {
+    if (queueNotificationRef.current) {
+      queueNotificationRef.current(message, type, duration);
+    }
+  }, []);
 
   const handleSocketMessage = useCallback((data: unknown) => {
     const message = data as WSMessage;
@@ -118,6 +184,16 @@ const GameRoom: React.FC = () => {
         const current = gameData.currentPlayer;
         if (typeof current === 'string') {
           setCurrentPlayerId(current);
+          // Check if current player is entangled and has Measurement card
+          if (current === playerId && entangledPlayers.has(current)) {
+            const hasMeasurement = myHand.getCards().some(card => {
+              const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
+              return activeFace?.value === 'Measurement';
+            });
+            setMustPlayMeasurement(hasMeasurement);
+          } else {
+            setMustPlayMeasurement(false);
+          }
         }
         if (gameData.direction !== undefined) {
           setTurnDirection(gameData.direction === 1 ? 'clockwise' : 'anti-clockwise');
@@ -205,6 +281,8 @@ const GameRoom: React.FC = () => {
           setMyHand(() => {
             const newHand = new Hand();
             newHand.setCards(handData);
+            // If player is entangled and just drew Measurement, they'll need to play it next turn
+            // The TURN_CHANGED handler will check this, but we can prepare here
             return newHand;
           });
         }
@@ -275,6 +353,11 @@ const GameRoom: React.FC = () => {
             cardTeleportedFromPlayerId?: string;
             cardTeleportedToPlayerId?: string;
             cardTeleported?: number;
+          };
+          entanglement?: {
+            player1Id?: string;
+            player2Id?: string;
+            initiatorId?: string;
           };
         };
         
@@ -354,6 +437,81 @@ const GameRoom: React.FC = () => {
           }
           setTimeout(() => setEffectNotification(null), 2000);
           // Opponent hands will be refreshed by backend via OPPONENT_HAND message to hide IDs
+        }
+
+        // Handle Entanglement effect
+        if (effectData.entanglement) {
+          const { player1Id, player2Id } = effectData.entanglement;
+          if (player1Id && player2Id) {
+            setEntangledPlayers(new Set([player1Id, player2Id]));
+            const player1Name = playerNames[player1Id] || player1Id.substring(0, 8);
+            const player2Name = playerNames[player2Id] || player2Id.substring(0, 8);
+            setEffectNotification({ 
+              message: `🔗 ${player1Name} and ${player2Name} are entangled!`, 
+              type: 'entanglement' 
+            });
+            setTimeout(() => setEffectNotification(null), 3000);
+          }
+        }
+
+        // Handle Entanglement card being played
+        if (effectData.effect === 'Entanglement') {
+          // Will be handled by AWAITING_ENTANGLEMENT_SELECTION message
+        }
+        break;
+      }
+
+      case 'AWAITING_ENTANGLEMENT_SELECTION': {
+        setIsEntanglementMode(true);
+        const entanglementMsg = (message as { message?: string; opponents?: Array<{ id: string; name: string }> });
+        setEntanglementOpponents(entanglementMsg.opponents || []);
+        setEffectNotification({ message: `🔗 ${entanglementMsg.message || 'Select 2 opponents to entangle.'}`, type: 'entanglement' });
+        break;
+      }
+
+      case 'ENTANGLEMENT_COLLAPSED': {
+        const collapseData = message as {
+          collapsedBy?: string;
+          player1Id?: string;
+          player2Id?: string;
+          player1Cards?: number;
+          player2Cards?: number;
+          playerWhoDrew3?: string;
+          playerWhoDrew0?: string;
+          playerWhoDrew3Name?: string;
+          playerWhoDrew0Name?: string;
+          outcome?: 'A' | 'B';
+        };
+        
+        if (collapseData.player1Id && collapseData.player2Id) {
+          // Remove entanglement status
+          setEntangledPlayers(prev => {
+            const updated = new Set(prev);
+            updated.delete(collapseData.player1Id!);
+            updated.delete(collapseData.player2Id!);
+            return updated;
+          });
+
+          // Note: The notification about who drew 3/0 cards is handled by ENTANGLEMENT_NOTIFICATION
+          // which is broadcast to all players from the backend with the correct player names
+        }
+        setMustPlayMeasurement(false);
+        break;
+      }
+
+      case 'ENTANGLEMENT_NOTIFICATION': {
+        console.log('Received ENTANGLEMENT_NOTIFICATION:', message); // Debug log
+        const notifData = message as {
+          message?: string;
+          notificationType?: 'entangled' | 'skip' | 'collapse';
+        };
+        console.log('Notification data:', notifData); // Debug log
+        if (notifData.message) {
+          const duration = notifData.notificationType === 'collapse' ? 5000 : 3000;
+          console.log('Calling queueNotification with:', notifData.message, 'duration:', duration); // Debug log
+          queueNotification(notifData.message, 'entanglement', duration);
+        } else {
+          console.warn('ENTANGLEMENT_NOTIFICATION received but message is missing'); // Debug log
         }
         break;
       }
@@ -501,7 +659,7 @@ const GameRoom: React.FC = () => {
       return index === 0 ? 'top-center' : 'bottom-center';
     } else if (totalPlayers === 3) {
       // For 3 players: opponents closer to center
-      return index === 0 ? 'top-left-center' : index === 1 ? 'top-right-center' : 'bottom-center';
+      return index === 0 ? 'top-right-center' : index === 1 ? 'top-left-center' : 'bottom-center';
     } else {
       // For 4 players: one on top, two on left-right sides
       return index === 0 ? 'top-center' : index === 1 ? 'mid-left' : index === 2 ? 'mid-right' : 'bottom-center';
@@ -596,7 +754,7 @@ const GameRoom: React.FC = () => {
         <div className="flex items-center gap-4">
           {gameStarted && (
             <div className="bg-black/50 px-4 py-2 rounded-lg font-semibold text-white text-sm">
-              {turnDirection === 'clockwise' ? '➡️' : '⬅️'} {turnDirection === 'clockwise' ? 'CW' : 'CCW'}
+              {turnDirection === 'clockwise' ? '⬅️' : '➡️'} {turnDirection === 'clockwise' ? 'CW' : 'CCW'}
             </div>
           )}
           {roomId && (
@@ -629,6 +787,11 @@ const GameRoom: React.FC = () => {
                 effectNotification={effectNotification}
                 isTeleportationMode={isTeleportationMode}
               />
+              {mustPlayMeasurement && playerId === currentPlayerId && (
+                <div className="fixed top-32 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg font-semibold text-center bg-purple-600 animate-pulse border-2 border-yellow-400 shadow-2xl">
+                  ⚛️ You are entangled! You must play your Measurement card!
+                </div>
+              )}
                     <GameBoard
                       sortedPlayerIds={sortedPlayerIds}
                       playerId={playerId}
@@ -643,6 +806,8 @@ const GameRoom: React.FC = () => {
                       turnDirection={turnDirection}
                       isTeleportationMode={isTeleportationMode}
                       isFlipping={isFlipping}
+                      entangledPlayers={entangledPlayers}
+                      mustPlayMeasurement={mustPlayMeasurement}
                       getPlayerPosition={getPlayerPosition}
                       onPlayCard={handlePlayCard}
                       onDrawCard={handleDrawCard}
@@ -667,6 +832,26 @@ const GameRoom: React.FC = () => {
                 isLightSideActive={isLightSideActive}
                 onDecision={handleDrawnCardDecision}
               />
+              {isEntanglementMode && (
+                <EntanglementSelectionModal
+                  opponents={entanglementOpponents}
+                  onSelect={(opponent1Id, opponent2Id) => {
+                    sendMessage({
+                      type: 'ENTANGLEMENT_SELECT',
+                      roomId,
+                      playerId,
+                      opponent1Id,
+                      opponent2Id
+                    });
+                    setIsEntanglementMode(false);
+                    setEffectNotification(null);
+                  }}
+                  onCancel={() => {
+                    setIsEntanglementMode(false);
+                    setEffectNotification(null);
+                  }}
+                />
+              )}
             </>
           ) : (
             <div className="mt-20 space-y-4 flex flex-col items-center relative z-50">

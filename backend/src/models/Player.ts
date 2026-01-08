@@ -9,6 +9,9 @@ export class Player {
     socket: WebSocket;
     status: PlayerStatus;
     private hand: Hand;
+    public isEntangled: boolean;
+    public entanglementPartner: Player | null;
+    public entanglementInitiator: Player | null;
 
     constructor(id: string, name: string, socket: WebSocket) {
         this.id = id;
@@ -16,6 +19,9 @@ export class Player {
         this.socket = socket;
         this.status = PlayerStatus.NOT_READY;
         this.hand = new Hand();
+        this.isEntangled = false;
+        this.entanglementPartner = null;
+        this.entanglementInitiator = null;
     }
 
     getHand(): Hand {
@@ -36,5 +42,19 @@ export class Player {
 
     markReady() {
         this.status = PlayerStatus.READY;
+    }
+
+    // Reset entanglement state
+    clearEntanglement() {
+        this.isEntangled = false;
+        this.entanglementPartner = null;
+        this.entanglementInitiator = null;
+    }
+
+    // Set entanglement with another player
+    setEntangled(partner: Player, initiator: Player) {
+        this.isEntangled = true;
+        this.entanglementPartner = partner;
+        this.entanglementInitiator = initiator;
     }
 }

@@ -23,6 +23,7 @@ export class GameRoom {
     public turnManager?: TurnManager;
     public teleportationState?: TeleportationState | null;
     public drawnCardAwaitingDecision?: Map<string, Card>;
+    public entanglementState?: { awaitingPlayerId: string; status: 'AWAITING_SELECTION' | 'COMPLETED' } | null;
 
     constructor(id: string, host: Player) {
         this.id = id;
@@ -37,6 +38,7 @@ export class GameRoom {
         this.playerNames.set(host.id, host.name);
         this.teleportationState = null;
         this.drawnCardAwaitingDecision = new Map();
+        this.entanglementState = null;
     }
 
     public addPlayer(player: Player, playerMap: Map<WebSocket, { roomId: string; playerId: string }>): void {

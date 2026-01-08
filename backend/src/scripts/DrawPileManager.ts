@@ -108,11 +108,13 @@ export class DrawPileManager {
 
 		//Generating wild action cards of black colour for the light side card faces
 		for (let i = 0; i < 8; i++) {
-			//8 colour superposition cards
-			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
-			if (2 * i < 8) {
-				//4 measurement and entaglement cards
-				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
+			//4 colour superposition cards (only in first 4 iterations)
+			if (i < 4) {
+				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
+			}
+			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
+			if (i < 4) {
+				//4 entanglement cards
 				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Entanglement);
 			}
 		}
@@ -143,11 +145,13 @@ export class DrawPileManager {
 
 		//Generating wild action cards of black colour for the dark side card faces
 		for (let i = 0; i < 8; i++) {
-			//8 colour superposition cards
-			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
-			if (2 * i < 8) {
-				//4 measurement and superposition cards
-				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
+			//4 colour superposition cards (only in first 4 iterations)
+			if (i < 4) {
+				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
+			}
+			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
+			if (i < 4) {
+				//4 superposition cards
 				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Superposition);
 			}
 		}

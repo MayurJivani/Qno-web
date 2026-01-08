@@ -10,6 +10,7 @@ interface FannedCardsProps {
   fanDirection?: 'left' | 'right' | 'up';
   isFlipping?: boolean;
   mustPlayMeasurement?: boolean;
+  isPlayerHand?: boolean; // true for player's hand (at bottom), false for opponent hands (at top)
 }
 
 const FannedCards: React.FC<FannedCardsProps> = ({ 
@@ -19,7 +20,8 @@ const FannedCards: React.FC<FannedCardsProps> = ({
   isSelectable = false,
   fanDirection = 'left',
   isFlipping = false,
-  mustPlayMeasurement = false
+  mustPlayMeasurement = false,
+  isPlayerHand = true
 }) => {
   if (cards.length === 0) return null;
 
@@ -38,10 +40,15 @@ const FannedCards: React.FC<FannedCardsProps> = ({
         const offsetX = index * 18;
         const offsetY = Math.abs(finalRotation) * 0.5;
         
+        const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
+        const cardValue = CardUtils.formatCardValue(activeFace?.value || '');
+        // For tooltip, use raw value with underscores replaced by spaces (no line breaks)
+        const tooltipValue = (activeFace?.value || '').replace(/_/g, ' ');
+        
         return (
           <div
             key={card.id || index}
-            className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
+            className="group absolute transition-all duration-300 hover:z-50 hover:scale-110"
             style={{
               left: `${offsetX}px`,
               top: `${offsetY}px`,
@@ -53,19 +60,33 @@ const FannedCards: React.FC<FannedCardsProps> = ({
             onClick={() => {
               if (mustPlayMeasurement) {
                 // Only allow clicking Measurement card when mustPlayMeasurement is true
-                const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
                 if (activeFace?.value === 'Measurement') {
-                  onClick && onClick(card, index);
+                  onClick?.(card, index);
                 }
               } else {
-                onClick && onClick(card, index);
+                onClick?.(card, index);
               }
             }}
           >
+            {/* Hover Tooltip - Card Value */}
+            {/* Position tooltip above for player hand (at bottom), below for opponent hands (at top) */}
+            <div className={`absolute left-1/2 -translate-x-1/2 bg-black/95 border-2 border-yellow-300 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-[0_0_10px_rgba(250,204,21,0.5)] ${
+              isPlayerHand ? '-top-10' : '-bottom-10'
+            }`}>
+              <span className="text-yellow-300 text-[10px] sm:text-xs font-['Press_Start_2P'] drop-shadow-[1px_1px_0_rgba(0,0,0,0.8)] block">
+                {tooltipValue}
+              </span>
+              {/* Tooltip Arrow - points down for player hand, up for opponent hands */}
+              <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] ${
+                isPlayerHand 
+                  ? 'top-full border-t-[5px] border-l-transparent border-r-transparent border-t-yellow-300' 
+                  : 'bottom-full border-b-[5px] border-l-transparent border-r-transparent border-b-yellow-300'
+              }`}></div>
+            </div>
+            
             <>
               <div className="transition-transform duration-200 hover:-translate-y-4">
                 {(() => {
-                  const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
                   const isMeasurement = activeFace?.value === 'Measurement';
                   const shouldHighlight = mustPlayMeasurement && isMeasurement;
                   const shouldDisable = mustPlayMeasurement && !isMeasurement;
@@ -110,7 +131,7 @@ const FannedCards: React.FC<FannedCardsProps> = ({
                             WebkitBoxOrient: 'vertical'
                           }}
                         >
-                          {CardUtils.formatCardValue((isLightSideActive ? card.lightSide : card.darkSide)?.value || '')}
+                          {cardValue}
                         </span>
                       </div>
                     </div>
@@ -118,7 +139,6 @@ const FannedCards: React.FC<FannedCardsProps> = ({
                 })()}
               </div>
               {(() => {
-                const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
                 const isMeasurement = activeFace?.value === 'Measurement';
                 const shouldHighlight = mustPlayMeasurement && isMeasurement;
                 return (

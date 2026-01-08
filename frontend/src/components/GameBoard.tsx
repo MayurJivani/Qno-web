@@ -182,6 +182,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               isSelectable={isSelectable}
               fanDirection={position === 'top-center' ? 'left' : 'right'}
               isFlipping={isFlipping}
+              isPlayerHand={false}
             />
           </div>
         );
@@ -206,6 +207,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 fanDirection={playerPosition === 'top-center' ? 'left' : 'right'}
                 isFlipping={isFlipping}
                 mustPlayMeasurement={mustPlayMeasurement && playerId === currentPlayerId}
+                isPlayerHand={true}
               />
             </div>
           );

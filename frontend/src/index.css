@@ -262,3 +262,28 @@ body::-webkit-scrollbar {
 .direction-rotate {
   animation: rotateDirection 0.6s ease-in-out;
 }
+
+/* WebSocket Log Window Scrollbar */
+.ws-log-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #06b6d4 #000;
+}
+
+.ws-log-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ws-log-scrollbar::-webkit-scrollbar-track {
+  background: #000;
+  border-radius: 4px;
+}
+
+.ws-log-scrollbar::-webkit-scrollbar-thumb {
+  background: #06b6d4;
+  border-radius: 4px;
+  border: 1px solid #000;
+}
+
+.ws-log-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #22d3ee;
+}

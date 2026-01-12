@@ -8,6 +8,7 @@ import EffectNotifications from './EffectNotifications';
 import PlayableCardModal from './PlayableCardModal';
 import GameBoard from './GameBoard';
 import EntanglementSelectionModal from './EntanglementSelectionModal';
+import WebSocketLogWindow, { WSLogEntry } from './WebSocketLogWindow';
 
 interface WSMessage {
   type: string;
@@ -47,6 +48,7 @@ const GameRoom: React.FC = () => {
   const [discardPileShake, setDiscardPileShake] = useState(false);
   const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
+  const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
 
   // Use refs for values used in callbacks to avoid dependency issues
   const isLightSideActiveRef = useRef(isLightSideActive);
@@ -592,7 +594,35 @@ const GameRoom: React.FC = () => {
     }
   }, []); // No dependencies needed - using refs for dynamic values
 
-  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage);
+  // WebSocket logger - only log gameplay action messages
+  const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
+    // Filter to only show gameplay messages (card plays, effects, entanglement, teleportation)
+    const gameActionTypes = [
+      'PLAY_CARD',
+      'CARD_EFFECT',
+      'ENTANGLEMENT_NOTIFICATION',
+      'ENTANGLEMENT_COLLAPSED',
+      'AWAITING_ENTANGLEMENT_SELECTION',
+      'AWAITING_TELEPORTATION_TARGET',
+      'TELEPORTATION_SELECT',
+      'TURN_CHANGED',
+      'DRAW_CARD',
+      'DRAWN_CARD_DECISION'
+    ];
+    
+    // Only log if it's a game action type
+    if (gameActionTypes.includes(type)) {
+      setWsLogs(prev => [...prev, {
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: Date.now(),
+        direction,
+        type,
+        data
+      }]);
+    }
+  }, []);
+
+  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage, wsLogger);
 
   const handleCreateRoom = useCallback(() => {
     if (!inputPlayerName.trim()) {
@@ -892,6 +922,12 @@ const GameRoom: React.FC = () => {
           onRoomIdChange={setInputRoomId}
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
+        />
+      )}
+      {gameStarted && (
+        <WebSocketLogWindow 
+          logs={wsLogs}
+          onClear={() => setWsLogs([])}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface RoomCreationFormProps {
   inputPlayerName: string;
@@ -9,6 +9,7 @@ interface RoomCreationFormProps {
   onRoomIdChange: (value: string) => void;
   onCreateRoom: () => void;
   onJoinRoom: () => void;
+  onReconnect?: () => void;
 }
 
 const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
@@ -20,7 +21,25 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
   onRoomIdChange,
   onCreateRoom,
   onJoinRoom,
+  onReconnect,
 }) => {
+  const [hasStoredSession, setHasStoredSession] = useState(false);
+
+  useEffect(() => {
+    // Check if there's a stored session that can be reconnected
+    const storedRoomId = localStorage.getItem('roomId');
+    const storedPlayerId = localStorage.getItem('playerId');
+    const storedSessionToken = localStorage.getItem('sessionToken');
+    setHasStoredSession(!!(storedRoomId && storedPlayerId && storedSessionToken));
+  }, []);
+
+  const handleClearSession = () => {
+    localStorage.removeItem('roomId');
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('sessionToken');
+    setHasStoredSession(false);
+  };
+
   return (
     <div className="flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-purple-900/90 via-indigo-900/90 to-pink-900/90 rounded-xl border-2 border-yellow-400 shadow-2xl relative z-50 max-w-md mx-auto mt-20 backdrop-blur-sm" 
          style={{ fontFamily: "'Press Start 2P', cursive" }}>
@@ -87,9 +106,37 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
           <span>{isConnecting ? 'Connecting...' : 'Join Room'}</span>
         </button>
       </div>
+
+      {/* Reconnect Section */}
+      {hasStoredSession && onReconnect && (
+        <div className="w-full mt-4 pt-4 border-t-2 border-yellow-400/50">
+          <div className="text-center text-yellow-300 font-semibold text-xs mb-3">
+            Previous Session Found
+          </div>
+          <div className="flex gap-2">
+            <button 
+              className="flex-1 bg-orange-500 hover:bg-orange-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2" 
+              onClick={onReconnect}
+              disabled={isConnecting}
+              style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
+            >
+              <span className="text-lg">🔄</span>
+              <span>{isConnecting ? 'Reconnecting...' : 'Reconnect'}</span>
+            </button>
+            <button 
+              className="bg-gray-500 hover:bg-gray-600 px-3 py-3 rounded-none font-bold text-sm transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center" 
+              onClick={handleClearSession}
+              disabled={isConnecting}
+              title="Clear stored session"
+              style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
+            >
+              <span className="text-lg">🗑️</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default RoomCreationForm;
-

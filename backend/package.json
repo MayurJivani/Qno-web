@@ -23,7 +23,7 @@
     "playPauliZTest": "jest tests/cardEffects/playPauliZ.test.ts",
     "playMeasurementTest": "jest tests/cardEffects/playMeasurement.test.ts",
     "playSuperpositionAndMeasurementTest": "jest tests/cardEffects/playSuperpositionAndMeasurement.test.ts",
-    "playDecoherenceTest": "jest tests/cardEffects/playColourSuperposition.test.ts",
+    "playDecoherenceTest": "jest tests/cardEffects/playDecoherence.test.ts",
     "playTeleportationBlockedTest": "jest tests/cardEffects/playTeleportationBlocked.test.ts",
     "playTeleportationSelectionTest": "jest tests/cardEffects/playTeleportationSelection.test.ts",
     "winConditionTest": "jest tests/game/winCondition.test.ts",

@@ -88,7 +88,8 @@ export class CardUtils {
         
         // Handle special cases for better readability with line breaks for long words
         formatted = formatted
-            .replace(/Decoherence/gi, 'Decoher\nence')
+            .replace(/Decoherence/gi, 'Deco\nherence')
+            .replace(/Color Superposition/gi, 'Color\nSuperposition')
             .replace(/Teleportation/gi, 'Teleport\nation')
             .replace(/Measurement/gi, 'Measure\nment')
             .replace(/Entanglement/gi, 'Entangle\nment');

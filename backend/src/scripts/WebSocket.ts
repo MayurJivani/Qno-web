@@ -63,13 +63,13 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				joinRoom(ws, parsed.roomId, playerName);
 			},
 			'REJOIN_ROOM': () => {
-				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
-					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || typeof parsed.sessionToken !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId, playerId, or sessionToken' }));
 					return;
 				}
-				rejoinRoom(ws, parsed.roomId, parsed.playerId);
+				rejoinRoom(ws, parsed.roomId, parsed.playerId, parsed.sessionToken);
 			},
-			'LEFT_ROOM': () => handlePlayerDisconnect(ws, parsed.roomId, parsed.playerId),
+			'LEFT_ROOM': () => handlePlayerDisconnect(ws, parsed.roomId, parsed.playerId, true),
 			'PLAYER_READY': () => {
 				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
 					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
@@ -142,10 +142,11 @@ const handleMessage = (ws: WebSocket, message: string) => {
 const createRoom = (ws: WebSocket, playerName: string) => {
 	const roomId = uuidv4();
 	const playerId = uuidv4();
-	const player: Player = new Player(playerId, playerName, ws);
+	const sessionToken = uuidv4(); // Generate unique session token for reconnection
+	const player: Player = new Player(playerId, playerName, ws, sessionToken);
 	const room: GameRoom = new GameRoom(roomId, player);
 	playerMap.set(ws, { roomId, playerId });
-	ws.send(JSON.stringify({ type: 'ROOM_CREATED', roomId, playerId }));
+	ws.send(JSON.stringify({ type: 'ROOM_CREATED', roomId, playerId, sessionToken }));
 	//addPlayer() function implicitly sends 'JOINED_ROOM' message to client and broadcasts 'NEW_PLAYER_JOINED' message to other players
 	room.addPlayer(player, playerMap);
 	rooms.set(roomId, room);
@@ -157,11 +158,14 @@ const joinRoom = (ws: WebSocket, roomId: string, playerName: string) => {
 	const room: GameRoom = rooms.get(roomId)!;
 	if (!room) return ws.send(JSON.stringify({ type: 'ERROR', message: 'Room not found' }));
 	const playerId = uuidv4();
+	const sessionToken = uuidv4(); // Generate unique session token for reconnection
 	playerMap.set(ws, { roomId, playerId });
 	if (room.canJoin()) {
-		const newPlayer: Player = new Player(playerId, playerName, ws);
+		const newPlayer: Player = new Player(playerId, playerName, ws, sessionToken);
 		//addPlayer() function implicitly sends 'JOINED_ROOM' message to client and broadcasts 'NEW_PLAYER_JOINED' message to other players
 		room.addPlayer(newPlayer, playerMap);
+		// Send session token to the new player
+		ws.send(JSON.stringify({ type: 'SESSION_TOKEN', sessionToken }));
 		Logger.info("ROOM_JOINED", `Player: ${playerId} (${playerName}) has joined room: ${roomId}`);
 	} else {
 		if (room.status !== GameRoomStatus.NOT_STARTED) {
@@ -175,7 +179,7 @@ const joinRoom = (ws: WebSocket, roomId: string, playerName: string) => {
 	}
 };
 
-const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: string) => {
+const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: string, isIntentionalLeave: boolean = false) => {
 	// Initialize playerID and roomID
 	let roomID = roomId ?? null;
 	let playerID = playerId ?? null;
@@ -196,17 +200,53 @@ const handlePlayerDisconnect = (ws: WebSocket, roomId?: string, playerId?: strin
 		Logger.error(`Room ${roomID} was not found. WebSocket could not be closed.`);
 		return;
 	}
+	
+	const player = room.players.get(playerID);
+	if (!player) {
+		playerMap.delete(ws);
+		ws.close();
+		return;
+	}
+
 	const isHost = room.host.id === playerID;
-	// Remove player from the room and clean up mappings
-	// Remove player implicitly checks whether room size is 0 or not. If it is zero, it deletes the room.
-	room.removePlayer(playerID, rooms);
+	
+	// Clean up the websocket mapping
 	playerMap.delete(ws);
 	ws.close();
-	// If no players are left in the room, return
-	if (room.players.size === 0) return;
-	// If host left, assign a new one
-	if (isHost) {
-		room.assignNewHost();
+
+	// If game hasn't started or player intentionally left, remove immediately
+	if (room.status === GameRoomStatus.NOT_STARTED || isIntentionalLeave) {
+		room.removePlayer(playerID, rooms);
+		// If no players are left in the room, return
+		if (room.players.size === 0) return;
+		// If host left, assign a new one
+		if (isHost) {
+			room.assignNewHost();
+		}
+		return;
+	}
+
+	// Game is in progress - use grace period system
+	room.markPlayerDisconnected(playerID, () => {
+		// This callback is called when the grace period expires
+		room.removeDisconnectedPlayer(playerID, rooms);
+		
+		// If host was removed, assign a new one
+		if (isHost && room.players.size > 0) {
+			room.assignNewHost();
+		}
+	}, 30000); // 30 second grace period
+
+	// If it's the disconnected player's turn, advance to next player
+	if (room.turnManager && room.turnManager.getCurrentPlayerId() === playerID) {
+		// Skip their turn and move to next player
+		const nextPlayerId = room.turnManager.advanceTurn();
+		room.broadcast({ 
+			type: 'TURN_SKIPPED', 
+			skippedPlayerId: playerID,
+			reason: 'Player disconnected'
+		});
+		room.broadcast({ type: 'TURN_UPDATE', playerId: nextPlayerId });
 	}
 };
 
@@ -255,29 +295,97 @@ const handleDrawnCardDecision = (_ws: WebSocket, roomId: string, playerId: strin
 	GameManager.handleDrawnCardDecision(room, player, decision);
 };
 
-const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: string, opponent1Id: string, opponent2Id: string) => {
-	const result = checkValidity(roomId, playerId);
-	if (!result) return;
-	const { room, player } = result;
-	GameManager.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
-};
-
-const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string) => {
+const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string, sessionToken: string) => {
 	const room = rooms.get(roomId);
 
-	if (!room || !room.players.has(playerId)) {
-		ws.send(JSON.stringify({ type: 'ERROR', message: 'Could not rejoin: Invalid room or playerId' }));
+	if (!room) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Could not rejoin: Room no longer exists. It may have been closed.' }));
 		return;
 	}
 
-	// Re-associate ws with this player
-	playerMap.set(ws, { playerId, roomId });
+	// Check if this player can reconnect (verify session token)
+	if (!room.canPlayerReconnect(playerId, sessionToken)) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Could not rejoin: Your session has expired or is invalid.' }));
+		return;
+	}
 
+	// Reconnect the player
+	const player = room.reconnectPlayer(playerId, ws, playerMap);
+	if (!player) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Could not rejoin: You are no longer in this room.' }));
+		return;
+	}
+
+	// Send rejoined confirmation with full game state
 	ws.send(JSON.stringify({
 		type: 'REJOINED_ROOM',
 		playerId,
 		roomId,
+		gameInProgress: room.status === GameRoomStatus.IN_PROGRESS,
 	}));
+
+	// If game is in progress, send the player their full game state
+	if (room.status === GameRoomStatus.IN_PROGRESS) {
+		// Send their hand
+		player.sendMessage({ 
+			type: 'YOUR_HAND', 
+			hand: player.getHand() 
+		});
+
+		// Send current discard pile top
+		const discardTop = room.discardPileManager.getTopCard(room.isLightSideActive);
+		if (discardTop) {
+			const activeFace = room.isLightSideActive ? discardTop.lightSide : discardTop.darkSide;
+			player.sendMessage({ 
+				type: 'DISCARD_PILE_TOP', 
+				card: activeFace 
+			});
+		}
+
+		// Send draw pile top (inactive face)
+		room.broadcastTopOfDrawPile();
+
+		// Send current turn info
+		const currentPlayerId = room.getCurrentPlayerId();
+		if (currentPlayerId) {
+			player.sendMessage({ 
+				type: 'TURN_UPDATE', 
+				playerId: currentPlayerId 
+			});
+		}
+
+		// Send player list with connection status
+		const playerList = Array.from(room.players.entries()).map(([id, p]) => ({
+			id,
+			name: p.name,
+			cardCount: p.getHandCards().length,
+			isDisconnected: p.isDisconnected,
+			isHost: room.host.id === id
+		}));
+		player.sendMessage({ 
+			type: 'PLAYER_LIST', 
+			players: playerList 
+		});
+
+		// Send opponent hands - this will send to all players including the reconnected one
+		room.broadcastOpponentHands();
+
+		// Send side info
+		player.sendMessage({
+			type: 'SIDE_UPDATE',
+			isLightSideActive: room.isLightSideActive
+		});
+
+		// If there's active entanglement, send that info
+		if (room.hasActiveEntanglement()) {
+			player.sendMessage({
+				type: 'ENTANGLEMENT_PILE',
+				pile: room.entanglementPile.map(c => room.isLightSideActive ? c.lightSide : c.darkSide)
+			});
+		}
+
+		Logger.info("PLAYER_STATE_RESTORED", `Full game state sent to reconnected player: ${playerId} in room: ${roomId}`);
+	}
 }
 
 const handleTeleportationSelection = (_ws: WebSocket, roomId: string, playerId: string, fromPlayerId: string, cardData: any) => {
@@ -307,6 +415,14 @@ const handleTeleportationSelection = (_ws: WebSocket, roomId: string, playerId: 
 	}
 	
 	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, actualCard)
+}
+
+const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: string, opponent1Id: string, opponent2Id: string) => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	const { room, player } = result;
+	
+	CardEffectEngine.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
 }
 
 const sendGameState = (ws: WebSocket) => {

@@ -115,28 +115,61 @@ export class GameManager {
             return;
         }
 
-        // Check if player is entangled and must play Measurement
+        // Check if player is entangled
         if (player.isEntangled) {
-            const entanglementCheck = CardEffectEngine.checkEntangledPlayerTurn(room, player);
-            if (entanglementCheck.mustPlayMeasurement) {
-                const cardFacePlayed = CardUtils.getActiveFace(card, room.isLightSideActive);
-                // If they're trying to play something other than Measurement, block it
-                if (cardFacePlayed.value !== ActionCards.WildCard.Measurement) {
-                    player.sendMessage({
-                        type: 'ERROR',
-                        message: 'You are entangled! You must play your Measurement card this turn.'
-                    });
-                    return;
-                }
-                // If they're playing Measurement, proceed (entanglement collapse will be handled in handleMeasurement)
-            } else {
-                // Entangled player without Measurement card - skip turn (only allow drawing)
+            const cardFacePlayed = CardUtils.getActiveFace(card, room.isLightSideActive);
+            
+            // Entangled players can ONLY play Measurement card (on the entanglement pile)
+            if (cardFacePlayed.value !== ActionCards.WildCard.Measurement) {
                 player.sendMessage({
                     type: 'ERROR',
-                    message: 'You are entangled and do not have a Measurement card. Your turn is skipped. You can only draw a card.'
+                    message: 'You are entangled! You can only play a Measurement card to break the entanglement, or draw a card.'
                 });
                 return;
             }
+            
+            // Player is playing Measurement to break entanglement
+            // Remove the card from the player's hand
+            player.setHandCards(player.getHandCards().filter(c => !CardUtils.areCardsEqual(c, card)));
+            
+            // Add Measurement to entanglement pile (not main discard pile)
+            room.addToEntanglementPile(card);
+            
+            const effectType = cardFacePlayed.value;
+
+            player.sendMessage({
+                type: 'PLAYED_CARD',
+                card: cardFacePlayed,
+                playerId: player.id,
+                effect: effectType,
+                onEntanglementPile: true
+            });
+
+            room.broadcast({
+                type: 'OPPONENT_PLAYED_CARD',
+                card: cardFacePlayed,
+                opponentId: player.id,
+                effect: effectType,
+                onEntanglementPile: true
+            }, [player.id]);
+
+            Logger.info("PLAYED_CARD", `Player: ${player.id} played Measurement on entanglement pile in room: ${room.id}.`);
+
+            // Handle the entanglement collapse
+            CardEffectEngine.handleMeasurementOnEntanglement(room, player, card);
+            
+            // Broadcast updated opponent hands
+            room.broadcastOpponentHands();
+
+            // Check win condition
+            if (player.getHandCards().length === 0) {
+                GameManager.endGame(room, player);
+                return;
+            }
+
+            // Advance turn normally after measurement
+            GameManager.handleRoomUpdate(room, { advanceTurn: true });
+            return;
         }
 
         let cardFacePlayed: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
@@ -173,19 +206,26 @@ export class GameManager {
                 return;
             }
 
-            // Entanglement card is handled separately (like teleportation)
-            // For 2-player games, it automatically entangles both players (no selection needed)
-            // For 3-4 player games, it requires selection modal
+            // Entanglement card is handled separately
+            // The entanglement card goes to a separate pile, not the main discard pile
+            // Other players continue playing on the card before entanglement
             if (cardFacePlayed.value == ActionCards.WildCard.Entanglement) {
+                // Remove entanglement card from discard pile (it was just added there)
+                room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
+                
+                // Store the card that was on top before entanglement
+                room.cardBeforeEntanglement = room.discardPileManager.getTopCard(room.isLightSideActive);
+                
+                // Add entanglement card to the separate entanglement pile
+                room.addToEntanglementPile(card);
+                
                 CardEffectEngine.handleCardEffect(card, room);
-                // For 2-player games, entanglement is applied immediately in handleEntanglement
-                // so we advance turn normally. For 3-4 player games, selection is required
-                // so we don't advance turn yet (will advance after selection)
-                if (room.players.size === 2) {
-                    // Turn advances normally - handleEntanglement already applied the effect
-                    GameManager.handleRoomUpdate(room, { advanceTurn: true });
-                }
-                // For 3-4 players, turn doesn't advance yet (waiting for selection)
+                
+                // Broadcast the entanglement pile state
+                room.broadcastEntanglementPile();
+                
+                // Turn advances normally - game continues for other players
+                GameManager.handleRoomUpdate(room, { advanceTurn: true });
                 return;
             }
 
@@ -252,14 +292,13 @@ export class GameManager {
 
         room.status = GameRoomStatus.FINISHED;
 
-        const winnerName = room.playerNames.get(winner.id) || winner.id.substring(0, 8);
-        Logger.info("GAME_END", `Player ${winner.id} (${winnerName}) won the game in room: ${room.id}`);
+        Logger.info("GAME_END", `Player ${winner.id} (${winner.name}) won the game in room: ${room.id}`);
 
         room.broadcast({
             type: 'GAME_END',
             winnerId: winner.id,
-            winnerName: winnerName,
-            message: `${winnerName} won the game!`
+            winnerName: winner.name,
+            message: `${winner.name} won the game!`
         });
     }
 
@@ -305,101 +344,18 @@ export class GameManager {
             return;
         }
 
-        // Check if player is entangled - if they don't have Measurement, they must draw and skip turn
-        if (player.isEntangled) {
-            const entanglementCheck = CardEffectEngine.checkEntangledPlayerTurn(room, player);
-            if (!entanglementCheck.mustPlayMeasurement) {
-                // Entangled player without Measurement - draw 1 card and skip turn
-                if (!room.drawPileManager.getRemainingCardCount()) {
-                    player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
-                    return;
-                }
-
-                let cardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;
-                player.getHand().addCard(cardDrawn);
-                let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
-                const isMeasurementCard = cardFaceDrawn.value === ActionCards.WildCard.Measurement;
-                
-                Logger.info("CARD_DRAWN", `Entangled Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card and skipped turn in room: ${room.id}.`);
-                
-                player.sendMessage({
-                    type: 'CARD_DRAWN',
-                    card: cardDrawn,
-                    hand: player.getHandCards()
-                });
-
-                room.broadcast({
-                    type: 'OPPONENT_DREW_CARD',
-                    card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
-                    opponentId: player.id
-                }, [player.id]);
-
-                // Notify that entangled player drew and skipped turn
-                const playerName = room.playerNames.get(player.id) || player.id.substring(0, 8);
-                const notificationMessage = isMeasurementCard
-                    ? `🔗 ${playerName} is entangled - drew Measurement card and skipped turn (must play it next turn!)`
-                    : `🔗 ${playerName} is entangled - drew 1 card and skipped turn (must play Measurement if available)`;
-                    
-                room.broadcast({
-                    type: 'ENTANGLEMENT_NOTIFICATION',
-                    message: notificationMessage,
-                    notificationType: 'skip'
-                });
-
-                room.broadcastOpponentHands();
-                room.broadcastTopOfDrawPile();
-                
-                // Skip turn - advance to next player
-                this.advanceTurn(room);
-                room.broadcastTopOfDiscardPile();
-                return;
-            }
-            // If they have Measurement, they must play it (handled in playCard)
-        }
-
         if (!room.drawPileManager.getRemainingCardCount()) {
             player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
             return;
         }
 
+        // Draw card for the player
         let cardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;
-        let turnChangeHandled: boolean = false;
         player.getHand().addCard(cardDrawn);
         let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
         Logger.info("CARD_DRAWN", `Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card in room: ${room.id}.`);
-        
-        // If the card drawn can be played, prompt the user instead of auto-playing
-        if (CardEffectEngine.checkValidMove(cardDrawn, room)) {
-            // Store the drawn card in room state so we can play it later if user chooses
-            room.drawnCardAwaitingDecision!.set(player.id, cardDrawn);
-            
-            // Send prompt to player
-            player.sendMessage({
-                type: 'PLAYABLE_CARD_DRAWN',
-                card: cardDrawn,
-                message: 'You drew a playable card! Would you like to play it or keep it?'
-            });
-            
-            // Still send CARD_DRAWN to update hand, but don't advance turn yet
-            player.sendMessage({
-                type: 'CARD_DRAWN',
-                card: cardDrawn,
-                hand: player.getHandCards()
-            });
-            
-            // Send the card drawn by the player to the opponents
-            room.broadcast({
-                type: 'OPPONENT_DREW_CARD',
-                card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
-                opponentId: player.id
-            }, [player.id]);
-            
-            // Broadcast updated opponent hands
-            room.broadcastOpponentHands();
-            return; // Don't advance turn yet - wait for user decision
-        }
 
-        // Send the card drawn to the current player along with their updated hand
+        // Send the card drawn to the current player
         player.sendMessage({
             type: 'CARD_DRAWN',
             card: cardDrawn,
@@ -410,20 +366,73 @@ export class GameManager {
         room.broadcast({
             type: 'OPPONENT_DREW_CARD',
             card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
-            opponentId: player.id // Pass the playerId of the person who drew the card
+            opponentId: player.id
         }, [player.id]);
 
-        // Broadcast updated opponent hands to all players after card is drawn
+        // If player is entangled, their partner also draws a card (correlated outcomes)
+        if (player.isEntangled && player.entanglementPartner) {
+            const partner = player.entanglementPartner;
+            
+            if (room.drawPileManager.getRemainingCardCount() > 0) {
+                let partnerCardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;
+                partner.getHand().addCard(partnerCardDrawn);
+                let partnerCardFaceDrawn: CardFace = CardUtils.getActiveFace(partnerCardDrawn, room.isLightSideActive);
+                
+                Logger.info("CARD_DRAWN", `Entangled Partner: ${partner.id} also drew a ${partnerCardFaceDrawn.colour} ${partnerCardFaceDrawn.value} card (correlated) in room: ${room.id}.`);
+
+                // Send the card drawn to the partner
+                partner.sendMessage({
+                    type: 'CARD_DRAWN',
+                    card: partnerCardDrawn,
+                    hand: partner.getHandCards(),
+                    isEntanglementDraw: true
+                });
+
+                // Send the partner's card drawn to all other players
+                room.broadcast({
+                    type: 'OPPONENT_DREW_CARD',
+                    card: CardUtils.getInactiveFace(partnerCardDrawn, room.isLightSideActive),
+                    opponentId: partner.id,
+                    isEntanglementDraw: true
+                }, [partner.id]);
+
+                // Notify about correlated draw
+                const playerName = room.playerNames.get(player.id) || player.id.substring(0, 8);
+                const partnerName = room.playerNames.get(partner.id) || partner.id.substring(0, 8);
+                
+                room.broadcast({
+                    type: 'ENTANGLEMENT_NOTIFICATION',
+                    message: `🔗 ${playerName} drew a card - ${partnerName} also drew (entangled outcomes)`,
+                    notificationType: 'correlatedDraw'
+                });
+            }
+        }
+
+        // Broadcast updated opponent hands to all players after card(s) drawn
         room.broadcastOpponentHands();
 
-        // Change turn to next player
-        if (!turnChangeHandled) {
-            this.advanceTurn(room);
-            // Send the new card on top of draw pile
-            room.broadcastTopOfDrawPile();
-            // Send the new card on top of discard pile
-            room.broadcastTopOfDiscardPile();
+        // If the card drawn can be played (and player is NOT entangled), prompt the user
+        // Entangled players can only play Measurement, so we don't prompt them for other cards
+        if (!player.isEntangled && CardEffectEngine.checkValidMove(cardDrawn, room)) {
+            // Store the drawn card in room state so we can play it later if user chooses
+            room.drawnCardAwaitingDecision!.set(player.id, cardDrawn);
+            
+            // Send prompt to player
+            player.sendMessage({
+                type: 'PLAYABLE_CARD_DRAWN',
+                card: cardDrawn,
+                message: 'You drew a playable card! Would you like to play it or keep it?'
+            });
+            
+            return; // Don't advance turn yet - wait for user decision
         }
+
+        // Change turn to next player
+        this.advanceTurn(room);
+        // Send the new card on top of draw pile
+        room.broadcastTopOfDrawPile();
+        // Send the new card on top of discard pile
+        room.broadcastTopOfDiscardPile();
     }
 
     public static handleDrawnCardDecision(room: GameRoom, player: Player, decision: 'PLAY' | 'KEEP') {
@@ -450,51 +459,12 @@ export class GameManager {
     private static advanceTurn(room: GameRoom): void {
         if (!room.turnManager || room.status === GameRoomStatus.FINISHED) return;
         
-        // Check if there are any entangled players
-        const entangledPlayers = Array.from(room.players.values()).filter(p => p.isEntangled);
-        
-        if (entangledPlayers.length > 0 && entangledPlayers.length < room.players.size) {
-            // If there are entangled players, only advance to entangled players
-            const entangledPlayerIds = new Set(entangledPlayers.map(p => p.id));
-            let nextPlayerId = room.turnManager.advanceTurn();
-            let attempts = 0;
-            const maxAttempts = room.players.size * 2; // Safety limit
-            
-            // Skip non-entangled players one by one
-            while (!entangledPlayerIds.has(nextPlayerId) && attempts < maxAttempts) {
-                // Broadcast that this player was skipped
-                const skippedPlayer = room.players.get(nextPlayerId);
-                if (skippedPlayer) {
-                    const skippedPlayerName = room.playerNames.get(skippedPlayer.id) || skippedPlayer.id.substring(0, 8);
-                    room.broadcast({
-                        type: 'ENTANGLEMENT_NOTIFICATION',
-                        message: `⏭️ ${skippedPlayerName} skipped (not entangled) - only entangled players can play`,
-                        notificationType: 'skip'
-                    });
-                }
-                nextPlayerId = room.turnManager.advanceTurn();
-                attempts++;
-            }
-            
-            if (attempts >= maxAttempts) {
-                Logger.error(`advanceTurn: Could not find entangled player after ${maxAttempts} attempts in room: ${room.id}`);
-                // Fallback to normal turn
-                nextPlayerId = room.turnManager.getCurrentPlayerId();
-            }
-            
-            room.broadcast({
-                type: 'TURN_CHANGED',
-                currentPlayer: nextPlayerId,
-                direction: room.turnManager.getDirection()
-            });
-        } else {
-            // Normal turn advancement when no entanglement or all players are entangled
-            const nextPlayer = room.turnManager.advanceTurn();
-            room.broadcast({
-                type: 'TURN_CHANGED',
-                currentPlayer: nextPlayer,
-                direction: room.turnManager.getDirection()
-            });
-        }
+        // Normal turn advancement - no skipping, entanglement doesn't affect turn order
+        const nextPlayer = room.turnManager.advanceTurn();
+        room.broadcast({
+            type: 'TURN_CHANGED',
+            currentPlayer: nextPlayer,
+            direction: room.turnManager.getDirection()
+        });
     }
 }

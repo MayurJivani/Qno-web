@@ -70,7 +70,9 @@ export class CardEffectEngine {
         if (!activeCardFaceOnTopOfDiscardPile) {
             return true;
         } else if (activeCardFaceOnTopOfDiscardPile.value == ActionCards.WildCard.Superposition) {
-            if (activeCardFacePlayed.value == ActionCards.WildCard.Measurement) {
+            // On Superposition, only Measurement or another Superposition can be played
+            if (activeCardFacePlayed.value == ActionCards.WildCard.Measurement 
+                || activeCardFacePlayed.value == ActionCards.WildCard.Superposition) {
                 return true;
             } else {
                 return false;
@@ -277,40 +279,81 @@ export class CardEffectEngine {
         return { advanceTurn: true };
     }
 
-    private static handleMeasurement(cardFace: CardFace, room: GameRoom, cardPlayed?: Card) {
-        const currentPlayer = room.getCurrentPlayer();
-        const wasEntangled = currentPlayer && currentPlayer.isEntangled;
-        
-        // Check if this measurement is played by an entangled player
-        if (currentPlayer && currentPlayer.isEntangled && cardPlayed) {
-            // Handle entanglement collapse
-            this.handleMeasurementCollapse(room, currentPlayer, cardPlayed);
-        }
+    private static handleMeasurement(cardFace: CardFace, room: GameRoom, _cardPlayed?: Card) {
+        // Note: Entangled players play Measurement on the entanglement pile, not here
+        // This handles normal Measurement on the main discard pile
 
-        const cardPlayedBeforeMeasurementCard: Card = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive)!;
-        let measuredCard: Card;
-        const cardBelowFace = CardUtils.getActiveFace(cardPlayedBeforeMeasurementCard, room.isLightSideActive);
+        const cardBelowMeasurement: Card = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive)!;
+        const cardBelowFace = CardUtils.getActiveFace(cardBelowMeasurement, room.isLightSideActive);
         
         if (cardBelowFace.value == ActionCards.WildCard.Superposition) {
-            // Superposition: draw a new non-action card
-            const superpositionCollapsedIntoCard: Card = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive)!;
-            measuredCard = superpositionCollapsedIntoCard;
-            room.discardPileManager.addCardOnTop(superpositionCollapsedIntoCard, room.isLightSideActive);
-        } else if (wasEntangled && CardUtils.isActionCard(cardBelowFace)) {
-            // After entanglement collapse, if card below is an action card, draw a non-action card instead
-            const nonActionCard: Card = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive)!;
-            measuredCard = nonActionCard;
-            room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
-            room.discardPileManager.addCardOnTop(nonActionCard, room.isLightSideActive);
-        } else {
-            // Normal measurement: reveal the card below
-            // Index 0 will be the measurement card just played, Index 1 will be the card below the measurement card. 
-            // removeCardAtIndex() takes into account if light side is active or not and respectively removes the card either from the front or back of the discard pile
-            room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive)
-            room.discardPileManager.addCardOnTop(cardPlayedBeforeMeasurementCard, room.isLightSideActive);
-            measuredCard = cardPlayedBeforeMeasurementCard;
+            // Superposition collapse: 50/50 chance between light side and dark side of the card BELOW superposition
+            // Get the card that was played before the Superposition (2 levels down from Measurement)
+            const rawDiscardPile = room.discardPileManager.getRawDiscardPile();
+            const pileLength = rawDiscardPile.length;
+            
+            if (pileLength >= 3) {
+                // Index: 0 = Measurement, 1 = Superposition, 2 = card before superposition
+                const cardBeforeSuperpositionIndex = room.isLightSideActive ? 2 : pileLength - 3;
+                const cardBeforeSuperposition = rawDiscardPile[cardBeforeSuperpositionIndex];
+                
+                if (cardBeforeSuperposition) {
+                    // 50/50 random choice between light side and dark side
+                    const collapseToLightSide = Math.random() < 0.5;
+                    
+                    // Get the face that the superposition collapses into
+                    const collapsedFace = collapseToLightSide 
+                        ? cardBeforeSuperposition.lightSide 
+                        : cardBeforeSuperposition.darkSide;
+                    
+                    // Remove the Superposition card (index 1)
+                    room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+                    
+                    // The card before superposition is now at index 1, bring it to top
+                    room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+                    room.discardPileManager.addCardOnTop(cardBeforeSuperposition, room.isLightSideActive);
+                    
+                    // Update the active side based on which face the superposition collapsed into
+                    // If collapsed to light side, light side should be active; if dark side, dark side should be active
+                    const previousLightSideActive = room.isLightSideActive;
+                    room.isLightSideActive = collapseToLightSide;
+                    
+                    Logger.info("EFFECT", `Measurement: Superposition collapsed into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
+                    
+                    // Include isLightSideActive at top level when the side changes so frontend can trigger flip animation
+                    const sideChanged = previousLightSideActive !== room.isLightSideActive;
+                    room.broadcast({
+                        type: 'CARD_EFFECT',
+                        effect: cardFace.value,
+                        ...(sideChanged && { isLightSideActive: room.isLightSideActive }),
+                        superpositionCollapse: {
+                            collapsedCard: collapsedFace,
+                            collapsedToSide: collapseToLightSide ? 'light' : 'dark',
+                            isLightSideActive: room.isLightSideActive,
+                            sideFlipped: sideChanged
+                        }
+                    });
+                    
+                    // If the active side changed, broadcast the change
+                    if (sideChanged) {
+                        room.broadcastOpponentHands();
+                        room.broadcastTopOfDrawPile();
+                    }
+                    
+                    return;
+                }
+            }
+            
+            // Fallback if we can't find the card before superposition (shouldn't happen normally)
+            Logger.error(`Measurement: Could not find card before Superposition in room: ${room.id}`);
         }
-        let measuredCardActiveFace = CardUtils.getActiveFace(measuredCard, room.isLightSideActive);
+        
+        // Normal measurement (not on Superposition): reveal the card below
+        // Index 0 will be the measurement card just played, Index 1 will be the card below the measurement card. 
+        room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+        room.discardPileManager.addCardOnTop(cardBelowMeasurement, room.isLightSideActive);
+        
+        let measuredCardActiveFace = CardUtils.getActiveFace(cardBelowMeasurement, room.isLightSideActive);
         Logger.info("EFFECT", `Measurement: Measurement card output is ${measuredCardActiveFace.colour} ${measuredCardActiveFace.value} in room: ${room.id}`);
         room.broadcast({
             type: 'CARD_EFFECT',
@@ -506,15 +549,69 @@ export class CardEffectEngine {
         return { mustPlayMeasurement: false };
     }
 
-    // Handle measurement collapse when played by entangled player
-    public static handleMeasurementCollapse(room: GameRoom, player: Player, _measurementCard: Card): void {
+    private static handleSuperposition(cardFace: CardFace, room: GameRoom) {
+        // Check if there's already a Superposition card on top of the discard pile
+        const cardBelow: Card | null = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive);
+        
+        if (cardBelow) {
+            const cardBelowFace = CardUtils.getActiveFace(cardBelow, room.isLightSideActive);
+            
+            // If playing Superposition on top of another Superposition, collapse the previous one
+            if (cardBelowFace.value === ActionCards.WildCard.Superposition) {
+                // Get the card that was below the previous Superposition (2 levels down)
+                // We need to find the card at index 2 (0 = new superposition, 1 = old superposition, 2 = card before)
+                const rawDiscardPile = room.discardPileManager.getRawDiscardPile();
+                const pileLength = rawDiscardPile.length;
+                
+                if (pileLength >= 3) {
+                    // Get the card at index 2 (considering light/dark side orientation)
+                    const cardBeforeSuperpositionIndex = room.isLightSideActive ? 2 : pileLength - 3;
+                    const cardBeforeSuperposition = rawDiscardPile[cardBeforeSuperpositionIndex];
+                    
+                    if (cardBeforeSuperposition) {
+                        // Remove the old Superposition card (index 1)
+                        room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+                        
+                        // Now remove the card that was before superposition (now at index 1) and put it on top
+                        room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+                        room.discardPileManager.addCardOnTop(cardBeforeSuperposition, room.isLightSideActive);
+                        
+                        const revealedFace = CardUtils.getActiveFace(cardBeforeSuperposition, room.isLightSideActive);
+                        Logger.info("EFFECT", `Superposition on Superposition: Collapsed into ${revealedFace.colour} ${revealedFace.value} in room: ${room.id}`);
+                        
+                        room.broadcast({
+                            type: 'CARD_EFFECT',
+                            effect: cardFace.value,
+                            additionalEffect: 'SUPERPOSITION_COLLAPSED',
+                            collapsedCard: revealedFace
+                        });
+                        
+                        // Broadcast updated discard pile
+                        room.broadcastTopOfDiscardPile();
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Normal Superposition - just played, waiting for Measurement
+        Logger.info("EFFECT", `Superposition: Superposition card has been played in room: ${room.id}`);
+        room.broadcast({
+            type: 'CARD_EFFECT',
+            effect: cardFace.value
+        });
+    }
+
+    // Handle Measurement played on the entanglement pile by an entangled player
+    public static handleMeasurementOnEntanglement(room: GameRoom, player: Player, _measurementCard: Card): void {
         if (!player.isEntangled || !player.entanglementPartner) {
-            return; // Not entangled or no partner, proceed with normal measurement
+            Logger.error(`handleMeasurementOnEntanglement: Player ${player.id} is not entangled`);
+            return;
         }
 
         const partner = player.entanglementPartner;
 
-        // 50/50 random outcome
+        // 50/50 random outcome for who draws cards
         const outcome = Math.random() < 0.5;
 
         let firstPlayer: Player;
@@ -577,6 +674,12 @@ export class CardEffectEngine {
         firstPlayer.clearEntanglement();
         secondPlayer.clearEntanglement();
 
+        // Move cards from entanglement pile to discard pile
+        const entanglementCards = room.clearEntanglementPile();
+        for (const card of entanglementCards) {
+            room.discardPileManager.addCardOnTop(card, room.isLightSideActive);
+        }
+
         // Determine which player drew 3 cards
         const playerWhoDrew3 = firstPlayerCards === 3 ? firstPlayer : secondPlayer;
         const playerWhoDrew0 = firstPlayerCards === 3 ? secondPlayer : firstPlayer;
@@ -584,6 +687,7 @@ export class CardEffectEngine {
         // Get player names for notification
         const player3Name = room.playerNames.get(playerWhoDrew3.id) || playerWhoDrew3.id.substring(0, 8);
         const player0Name = room.playerNames.get(playerWhoDrew0.id) || playerWhoDrew0.id.substring(0, 8);
+        const collapserName = room.playerNames.get(player.id) || player.id.substring(0, 8);
         
         // Broadcast collapse outcome
         room.broadcast({
@@ -601,18 +705,23 @@ export class CardEffectEngine {
         });
 
         // Broadcast clear notification about who got what
-        const notificationMessage = `⚛️ Entanglement Collapsed! ${player3Name} drew 3 cards, ${player0Name} drew 0.`;
-        Logger.info("ENTANGLEMENT_NOTIFICATION", `Broadcasting: ${notificationMessage} in room: ${room.id}`);
+        const notificationMessage = `⚛️ ${collapserName} played Measurement! Entanglement collapsed: ${player3Name} drew 3 cards, ${player0Name} drew 0.`;
+        Logger.info("ENTANGLEMENT_COLLAPSED", `${notificationMessage} in room: ${room.id}`);
         room.broadcast({
             type: 'ENTANGLEMENT_NOTIFICATION',
             message: notificationMessage,
             notificationType: 'collapse'
         });
 
-        // Broadcast updated opponent hands
-        room.broadcastOpponentHands();
+        // Broadcast that entanglement pile is now empty
+        room.broadcastEntanglementPile();
 
-        Logger.info("ENTANGLEMENT_COLLAPSE", `Entanglement collapsed by ${player.id}. Outcome: ${outcome ? 'A' : 'B'}. ${firstPlayer.id} draws ${firstPlayerCards}, ${secondPlayer.id} draws ${secondPlayerCards} in room: ${room.id}`);
+        // Now apply the normal Measurement effect on the main discard pile
+        // This handles cases like Superposition on the discard pile
+        this.applyMeasurementEffectOnDiscardPile(room);
+
+        // Broadcast updated draw pile
+        room.broadcastTopOfDrawPile();
 
         // Check win conditions
         if (firstPlayer.getHandCards().length === 0) {
@@ -622,11 +731,75 @@ export class CardEffectEngine {
         }
     }
 
-    private static handleSuperposition(cardFace: CardFace, room: GameRoom) {
-        Logger.info("EFFECT", `Superposition: Superposition card has been played in room: ${room.id}`);
-        room.broadcast({
-            type: 'CARD_EFFECT',
-            effect: cardFace.value
-        });
+    // Apply measurement effect on the main discard pile (used after entanglement collapse)
+    private static applyMeasurementEffectOnDiscardPile(room: GameRoom): void {
+        const topCard: Card | null = room.discardPileManager.getTopCard(room.isLightSideActive);
+        if (!topCard) {
+            Logger.info("EFFECT", `Measurement: No card on discard pile to measure in room: ${room.id}`);
+            return;
+        }
+
+        const topCardFace = CardUtils.getActiveFace(topCard, room.isLightSideActive);
+        
+        // Check if the top card is Superposition - if so, collapse it
+        if (topCardFace.value === ActionCards.WildCard.Superposition) {
+            // Get the card below Superposition (the card it was played on)
+            const cardBelowSuperposition: Card | null = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive);
+            
+            if (cardBelowSuperposition) {
+                // 50/50 random choice between light side and dark side
+                const collapseToLightSide = Math.random() < 0.5;
+                
+                // Get the face that the superposition collapses into
+                const collapsedFace = collapseToLightSide 
+                    ? cardBelowSuperposition.lightSide 
+                    : cardBelowSuperposition.darkSide;
+                
+                // Remove the Superposition card (index 0 - it's on top)
+                room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
+                
+                // The card below is now on top, but we need to update the active side
+                const previousLightSideActive = room.isLightSideActive;
+                room.isLightSideActive = collapseToLightSide;
+                
+                Logger.info("EFFECT", `Measurement collapsed Superposition into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
+                
+                room.broadcast({
+                    type: 'CARD_EFFECT',
+                    effect: ActionCards.WildCard.Measurement,
+                    additionalEffect: 'SUPERPOSITION_COLLAPSED',
+                    superpositionCollapse: {
+                        collapsedCard: collapsedFace,
+                        collapsedToSide: collapseToLightSide ? 'light' : 'dark',
+                        isLightSideActive: room.isLightSideActive
+                    }
+                });
+                
+                // If the active side changed, broadcast the change
+                if (previousLightSideActive !== room.isLightSideActive) {
+                    room.broadcastOpponentHands();
+                    room.broadcastTopOfDrawPile();
+                }
+            }
+        } else {
+            // Normal measurement effect - bring the card below to the top
+            const cardBelow: Card | null = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive);
+            if (cardBelow) {
+                // Remove the card below and put it on top
+                room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
+                room.discardPileManager.addCardOnTop(cardBelow, room.isLightSideActive);
+                const cardBelowFace = CardUtils.getActiveFace(cardBelow, room.isLightSideActive);
+                Logger.info("EFFECT", `Measurement revealed ${cardBelowFace.colour} ${cardBelowFace.value} from below in room: ${room.id}`);
+                
+                room.broadcast({
+                    type: 'CARD_EFFECT',
+                    effect: ActionCards.WildCard.Measurement,
+                    revealedCard: cardBelowFace
+                });
+            }
+        }
+        
+        // Broadcast updated discard pile
+        room.broadcastTopOfDiscardPile();
     }
 }

@@ -20,6 +20,7 @@ interface GameBoardProps {
   isTeleportationMode: boolean;
   isFlipping: boolean;
   entangledPlayers?: Set<string>;
+  disconnectedPlayers?: Set<string>;
   mustPlayMeasurement?: boolean;
   getPlayerPosition: (index: number, totalPlayers: number) => 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   onPlayCard: (card: Card) => void;
@@ -42,6 +43,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   isTeleportationMode,
   isFlipping,
   entangledPlayers = new Set(),
+  disconnectedPlayers = new Set(),
   mustPlayMeasurement = false,
   getPlayerPosition,
   onPlayCard,
@@ -70,6 +72,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               isYou={isYou}
               position={position}
               isEntangled={entangledPlayers.has(id)}
+              isDisconnected={disconnectedPlayers.has(id)}
             />
           );
         }

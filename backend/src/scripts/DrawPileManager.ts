@@ -85,6 +85,12 @@ export class DrawPileManager {
 		return this.drawPile;
 	}
 
+	// Add cards to the draw pile and shuffle
+	public addCardsAndShuffle(cards: Card[]): void {
+		this.drawPile.push(...cards);
+		DrawPileManager.shuffle(this.drawPile);
+	}
+
 	private static generateLightSideCardFaces(): CardFace[] {
 		const faces: CardFace[] = [];
 

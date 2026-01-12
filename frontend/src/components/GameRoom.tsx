@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Confetti from 'react-confetti';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { Card } from '../models/Card';
 import { CardFace } from '../enums/cards/CardFace';
@@ -8,8 +9,6 @@ import EffectNotifications from './EffectNotifications';
 import PlayableCardModal from './PlayableCardModal';
 import GameBoard from './GameBoard';
 import EntanglementSelectionModal from './EntanglementSelectionModal';
-import WebSocketLogWindow, { WSLogEntry } from './WebSocketLogWindow';
-import VictoryModal from './VictoryModal';
 
 interface WSMessage {
   type: string;
@@ -23,6 +22,7 @@ interface WSMessage {
 const GameRoom: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [inputRoomId, setInputRoomId] = useState('');
   const [inputPlayerName, setInputPlayerName] = useState<string>('');
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -49,15 +49,16 @@ const GameRoom: React.FC = () => {
   const [discardPileShake, setDiscardPileShake] = useState(false);
   const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
-  const [showVictoryModal, setShowVictoryModal] = useState(false);
-  const [victoryData, setVictoryData] = useState<{ isWinner: boolean; winnerName: string } | null>(null);
+  const [disconnectedPlayers, setDisconnectedPlayers] = useState<Set<string>>(new Set());
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [victoryScreen, setVictoryScreen] = useState<{ show: boolean; isWinner: boolean; message: string } | null>(null);
 
   // Use refs for values used in callbacks to avoid dependency issues
   const isLightSideActiveRef = useRef(isLightSideActive);
   const playerIdRef = useRef(playerId);
   const inputPlayerNameRef = useRef(inputPlayerName);
-  const playerNamesRef = useRef(playerNames);
+  const sessionTokenRef = useRef(sessionToken);
+  const roomIdRef = useRef(roomId);
   
   // Notification queue system
   const notificationQueueRef = useRef<Array<{ message: string; type: string; duration: number }>>([]);
@@ -77,13 +78,16 @@ const GameRoom: React.FC = () => {
   }, [inputPlayerName]);
 
   useEffect(() => {
-    playerNamesRef.current = playerNames;
-  }, [playerNames]);
+    sessionTokenRef.current = sessionToken;
+  }, [sessionToken]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
 
   const allReady = useMemo(() => {
     return players.length > 0 && players.every(id => readyPlayers.has(id));
   }, [players, readyPlayers]);
-
 
   function isJoinedRoomMessage(msg: WSMessage): msg is WSMessage & { roomId: string; playerId: string } {
     return typeof msg.roomId === 'string' && typeof msg.playerId === 'string';
@@ -152,9 +156,26 @@ const GameRoom: React.FC = () => {
     const currentPlayerId = playerIdRef.current;
     
     switch (message.type) {
-      case 'ROOM_CREATED':
+      case 'ROOM_CREATED': {
         setIsHost(true);
+        // Store session token from room creation
+        const token = (message as { sessionToken?: string }).sessionToken;
+        if (token) {
+          setSessionToken(token);
+          localStorage.setItem('sessionToken', token);
+        }
         break;
+      }
+
+      case 'SESSION_TOKEN': {
+        // Store session token sent after joining a room
+        const token = (message as { sessionToken?: string }).sessionToken;
+        if (token) {
+          setSessionToken(token);
+          localStorage.setItem('sessionToken', token);
+        }
+        break;
+      }
 
       case 'JOINED_ROOM': {
         if (isJoinedRoomMessage(message)) {
@@ -342,18 +363,22 @@ const GameRoom: React.FC = () => {
 
 
       case 'GAME_END': {
-        const gameEndData = message as { winnerId?: string; winnerName?: string; message?: string };
+        const gameEndData = message as { winnerId?: string; message?: string; winnerName?: string };
         setGameStarted(false);
-        const winnerId = gameEndData.winnerId;
-        const isWinner = winnerId === currentPlayerId;
         
-        // Get winner name from message or playerNames state
-        const winnerName = gameEndData.winnerName || 
-          (winnerId && playerNamesRef.current[winnerId]) || 
-          'Someone';
+        // Clear localStorage to prevent auto-rejoin after game ends
+        localStorage.removeItem('roomId');
+        localStorage.removeItem('playerId');
+        localStorage.removeItem('sessionToken');
         
-        setVictoryData({ isWinner, winnerName });
-        setShowVictoryModal(true);
+        // Show victory screen
+        const isWinner = gameEndData.winnerId === currentPlayerId;
+        const winnerName = gameEndData.winnerName || 'Unknown Player';
+        setVictoryScreen({
+          show: true,
+          isWinner,
+          message: isWinner ? '🎉 You Won! 🎉' : `🏆 ${winnerName} wins!`
+        });
         break;
       }
 
@@ -405,9 +430,38 @@ const GameRoom: React.FC = () => {
           }
         }
         
-        // Handle Measurement effect
+        // Handle Measurement effect (including superposition collapse)
         if (effectData.effect === 'Measurement') {
-          setEffectNotification({ message: '📏 Measurement: Card Revealed!', type: 'measurement' });
+          const superpositionCollapseData = effectData as { 
+            superpositionCollapse?: { 
+              collapsedCard?: { colour?: string; value?: string };
+              collapsedToSide?: string;
+              sideFlipped?: boolean;
+            } 
+          };
+          
+          if (superpositionCollapseData.superpositionCollapse) {
+            // Superposition collapsed via Measurement
+            const collapse = superpositionCollapseData.superpositionCollapse;
+            const collapsedCard = collapse.collapsedCard;
+            const cardDesc = collapsedCard ? `${collapsedCard.colour} ${collapsedCard.value}` : 'a card';
+            
+            if (collapse.sideFlipped) {
+              // Side changed - show flip message
+              setEffectNotification({ 
+                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`, 
+                type: 'measurement' 
+              });
+            } else {
+              setEffectNotification({ 
+                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`, 
+                type: 'measurement' 
+              });
+            }
+          } else {
+            // Normal measurement
+            setEffectNotification({ message: '📏 Measurement: Card Revealed!', type: 'measurement' });
+          }
           setDiscardPileShake(true);
           setTimeout(() => setDiscardPileShake(false), 500);
           setTimeout(() => setEffectNotification(null), 2000);
@@ -423,7 +477,17 @@ const GameRoom: React.FC = () => {
         
         // Handle Superposition effect
         if (effectData.effect === 'Superposition') {
-          setEffectNotification({ message: '⚛️ Superposition: Waiting for Measurement...', type: 'superposition' });
+          // Check if this is a Superposition on Superposition collapse
+          if ((effectData as { additionalEffect?: string }).additionalEffect === 'SUPERPOSITION_COLLAPSED') {
+            const collapsedCard = (effectData as { collapsedCard?: { colour?: string; value?: string } }).collapsedCard;
+            const cardDesc = collapsedCard ? `${collapsedCard.colour} ${collapsedCard.value}` : 'a card';
+            setEffectNotification({ message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`, type: 'measurement' });
+            setDiscardPileShake(true);
+            setTimeout(() => setDiscardPileShake(false), 500);
+          } else {
+            // Normal Superposition - waiting for Measurement
+            setEffectNotification({ message: '⚛️ Superposition: Waiting for Measurement...', type: 'superposition' });
+          }
           setTimeout(() => setEffectNotification(null), 2000);
         }
         
@@ -591,8 +655,17 @@ const GameRoom: React.FC = () => {
         const errorMessage = message.message as string;
         setConnectionError(errorMessage);
         setIsConnecting(false);
-        // Only alert for connection errors, not game errors
-        if (errorMessage.includes('connect') || errorMessage.includes('connection')) {
+        setIsReconnecting(false);
+        
+        // If it's a reconnection error, clear the stale session data
+        if (errorMessage.includes('rejoin') || errorMessage.includes('Could not rejoin')) {
+          localStorage.removeItem('roomId');
+          localStorage.removeItem('playerId');
+          localStorage.removeItem('sessionToken');
+          setSessionToken(null);
+          alert('Your previous session has expired. Please create or join a new room.');
+        } else if (errorMessage.includes('connect') || errorMessage.includes('connection')) {
+          // Only alert for connection errors, not game errors
           alert(errorMessage);
         }
         break;
@@ -602,39 +675,198 @@ const GameRoom: React.FC = () => {
         setConnectionError(null);
         break;
       }
+
+      // Player disconnection handling
+      case 'PLAYER_DISCONNECTED': {
+        const disconnectData = message as { 
+          playerId?: string; 
+          playerName?: string;
+          gracePeriodMs?: number;
+        };
+        if (disconnectData.playerId) {
+          setDisconnectedPlayers(prev => new Set(prev).add(disconnectData.playerId!));
+          const playerName = disconnectData.playerName || disconnectData.playerId.substring(0, 8);
+          const gracePeriodSec = Math.round((disconnectData.gracePeriodMs || 30000) / 1000);
+          queueNotification(
+            `⚠️ ${playerName} disconnected. Waiting ${gracePeriodSec}s for reconnection...`,
+            'warning',
+            5000
+          );
+        }
+        break;
+      }
+
+      case 'PLAYER_RECONNECTED': {
+        const reconnectData = message as { 
+          playerId?: string; 
+          playerName?: string;
+        };
+        if (reconnectData.playerId) {
+          setDisconnectedPlayers(prev => {
+            const updated = new Set(prev);
+            updated.delete(reconnectData.playerId!);
+            return updated;
+          });
+          const playerName = reconnectData.playerName || reconnectData.playerId.substring(0, 8);
+          queueNotification(
+            `✅ ${playerName} reconnected!`,
+            'success',
+            3000
+          );
+        }
+        break;
+      }
+
+      case 'PLAYER_LEFT_PERMANENTLY': {
+        const leftData = message as { 
+          playerId?: string; 
+          remainingPlayers?: number;
+          cardsRecycled?: number;
+        };
+        if (leftData.playerId) {
+          // Remove from disconnected players tracking
+          setDisconnectedPlayers(prev => {
+            const updated = new Set(prev);
+            updated.delete(leftData.playerId!);
+            return updated;
+          });
+          // Remove from players list
+          setPlayers(prev => prev.filter(id => id !== leftData.playerId));
+          // Remove from opponent decks
+          setOpponentDecks(prev => {
+            const updated = { ...prev };
+            delete updated[leftData.playerId!];
+            return updated;
+          });
+          const playerName = playerNames[leftData.playerId] || leftData.playerId.substring(0, 8);
+          queueNotification(
+            `❌ ${playerName} left the game. Their ${leftData.cardsRecycled || 0} cards were shuffled back into the deck.`,
+            'warning',
+            4000
+          );
+        }
+        break;
+      }
+
+      case 'TURN_SKIPPED': {
+        const skipData = message as { 
+          skippedPlayerId?: string;
+          reason?: string;
+        };
+        if (skipData.skippedPlayerId) {
+          const playerName = playerNames[skipData.skippedPlayerId] || skipData.skippedPlayerId.substring(0, 8);
+          queueNotification(
+            `⏭️ ${playerName}'s turn skipped: ${skipData.reason || 'Player unavailable'}`,
+            'info',
+            3000
+          );
+        }
+        break;
+      }
+
+      case 'TURN_UPDATE': {
+        const turnData = message as { playerId?: string };
+        if (turnData.playerId) {
+          setCurrentPlayerId(turnData.playerId);
+        }
+        break;
+      }
+
+      case 'GAME_OVER': {
+        const gameOverData = message as { 
+          winnerId?: string;
+          winnerName?: string;
+          reason?: string;
+        };
+        setGameStarted(false);
+        const winnerName = gameOverData.winnerName || gameOverData.winnerId?.substring(0, 8) || 'Unknown';
+        if (gameOverData.winnerId === playerIdRef.current) {
+          queueNotification('🎉 You Won! 🎉', 'victory', 5000);
+        } else {
+          queueNotification(
+            `🏆 ${winnerName} wins! ${gameOverData.reason || ''}`,
+            'gameEnd',
+            5000
+          );
+        }
+        break;
+      }
+
+      case 'REJOINED_ROOM': {
+        const rejoinData = message as { 
+          playerId?: string;
+          roomId?: string;
+          gameInProgress?: boolean;
+        };
+        setIsReconnecting(false);
+        setIsConnecting(false);
+        if (rejoinData.playerId) setPlayerId(rejoinData.playerId);
+        if (rejoinData.roomId) setRoomId(rejoinData.roomId);
+        if (rejoinData.gameInProgress) {
+          setGameStarted(true);
+          setReady(true);
+        }
+        queueNotification('✅ Successfully reconnected!', 'success', 3000);
+        break;
+      }
+
+      case 'PLAYER_LIST': {
+        const playerListData = message as {
+          players?: Array<{
+            id: string;
+            name: string;
+            cardCount: number;
+            isDisconnected: boolean;
+            isHost: boolean;
+          }>;
+        };
+        if (playerListData.players) {
+          // Update players list
+          setPlayers(playerListData.players.map(p => p.id));
+          // Update player names
+          const names: Record<string, string> = {};
+          playerListData.players.forEach(p => {
+            names[p.id] = p.name;
+          });
+          setPlayerNames(prev => ({ ...prev, ...names }));
+          // Update disconnected players
+          const disconnected = new Set<string>();
+          playerListData.players.forEach(p => {
+            if (p.isDisconnected) disconnected.add(p.id);
+          });
+          setDisconnectedPlayers(disconnected);
+          // Update host status
+          const hostPlayer = playerListData.players.find(p => p.isHost);
+          if (hostPlayer && hostPlayer.id === playerIdRef.current) {
+            setIsHost(true);
+          }
+        }
+        break;
+      }
+
+      case 'SIDE_UPDATE': {
+        const sideData = message as { isLightSideActive?: boolean };
+        if (typeof sideData.isLightSideActive === 'boolean') {
+          setIsLightSideActive(sideData.isLightSideActive);
+          isLightSideActiveRef.current = sideData.isLightSideActive;
+        }
+        break;
+      }
+
+      case 'ENTANGLEMENT_PILE': {
+        // Handle entanglement pile update (for reconnection)
+        // The pile contains the cards in the entanglement pile
+        const pileData = message as { pile?: CardFace[] };
+        if (pileData.pile && pileData.pile.length > 0) {
+          // There's an active entanglement - update UI accordingly
+          queueNotification('🔗 Entanglement is active', 'entanglement', 2000);
+        }
+        break;
+      }
     }
   }, []); // No dependencies needed - using refs for dynamic values
 
-  // WebSocket logger - only log gameplay action messages
-  const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
-    // Filter to only show gameplay messages (card plays, effects, entanglement, teleportation)
-    const gameActionTypes = [
-      'PLAYED_CARD',
-      'OPPONENT_PLAYED_CARD',
-      'CARD_EFFECT',
-      'ENTANGLEMENT_NOTIFICATION',
-      'ENTANGLEMENT_COLLAPSED',
-      'AWAITING_ENTANGLEMENT_SELECTION',
-      'AWAITING_TELEPORTATION_TARGET',
-      'TELEPORTATION_SELECT',
-      'TURN_CHANGED',
-      'DRAW_CARD',
-      'DRAWN_CARD_DECISION'
-    ];
-    
-    // Only log if it's a game action type
-    if (gameActionTypes.includes(type)) {
-      setWsLogs(prev => [...prev, {
-        id: `${Date.now()}-${Math.random()}`,
-        timestamp: Date.now(),
-        direction,
-        type,
-        data
-      }]);
-    }
-  }, []);
-
-  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage, wsLogger);
+  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage);
 
   const handleCreateRoom = useCallback(() => {
     if (!inputPlayerName.trim()) {
@@ -657,10 +889,40 @@ const GameRoom: React.FC = () => {
     setIsConnecting(true);
     connect({ type: 'JOIN_ROOM', roomId: inputRoomId, playerName: inputPlayerName.trim() });
   }, [connect, inputRoomId, inputPlayerName]);
+
+  // Attempt to reconnect to an existing game session
+  const handleReconnect = useCallback(() => {
+    const storedRoomId = localStorage.getItem('roomId');
+    const storedPlayerId = localStorage.getItem('playerId');
+    const storedSessionToken = localStorage.getItem('sessionToken');
+
+    if (!storedRoomId || !storedPlayerId || !storedSessionToken) {
+      alert('No previous session found to reconnect to.');
+      return;
+    }
+
+    setIsReconnecting(true);
+    setIsConnecting(true);
+    connect({ 
+      type: 'REJOIN_ROOM', 
+      roomId: storedRoomId, 
+      playerId: storedPlayerId, 
+      sessionToken: storedSessionToken 
+    });
+  }, [connect]);
+
+  // Note: We intentionally do NOT auto-restore roomId/playerId from localStorage on mount.
+  // The stored session is only used when the user explicitly clicks "Reconnect".
+  // This allows users to start a new game or join a different room.
+
   const handleLeaveRoom = () => {
     sendMessage({ type: 'LEFT_ROOM', roomId, playerId });
     disconnect();
-    // Reset game state
+    // Reset game state and clear localStorage
+    localStorage.removeItem('roomId');
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('sessionToken');
+    setSessionToken(null);
     setRoomId(null);
     setPlayerId(null);
     setInputRoomId('');
@@ -678,7 +940,35 @@ const GameRoom: React.FC = () => {
     setIsTeleportationMode(false);
     setEffectNotification(null);
     setPlayableCardDrawn(null);
+    setDisconnectedPlayers(new Set());
+    setVictoryScreen(null);
   };
+
+  const handleLeaveVictoryScreen = () => {
+    disconnect();
+    // Reset all game state
+    setSessionToken(null);
+    setRoomId(null);
+    setPlayerId(null);
+    setInputRoomId('');
+    setInputPlayerName('');
+    setReady(false);
+    setIsHost(false);
+    setGameStarted(false);
+    setMyHand(new Hand());
+    setOpponentDecks({});
+    setPlayerNames({});
+    setPlayers([]);
+    setReadyPlayers(new Set());
+    setDrawTop(null);
+    setDiscardTop(null);
+    setIsTeleportationMode(false);
+    setEffectNotification(null);
+    setPlayableCardDrawn(null);
+    setDisconnectedPlayers(new Set());
+    setVictoryScreen(null);
+  };
+
   const handleReady = () => {
     setReady(true);
     sendMessage({ type: 'PLAYER_READY', roomId, playerId });
@@ -779,6 +1069,35 @@ const GameRoom: React.FC = () => {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      {/* Victory Screen Overlay */}
+      {victoryScreen?.show && (
+        <>
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            recycle={true}
+            numberOfPieces={victoryScreen.isWinner ? 300 : 100}
+            colors={victoryScreen.isWinner ? ['#FFD700', '#FFA500', '#FF6347', '#00FF00', '#1E90FF', '#FF1493'] : ['#C0C0C0', '#A0A0A0', '#808080']}
+          />
+          <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center">
+            <div className="text-center space-y-8 animate-pulse">
+              <div className={`text-6xl md:text-8xl font-bold ${victoryScreen.isWinner ? 'text-yellow-400' : 'text-gray-300'}`}>
+                {victoryScreen.message}
+              </div>
+              <div className="text-2xl md:text-3xl text-white/80">
+                {victoryScreen.isWinner ? 'Congratulations! You are the quantum champion!' : 'Better luck next time!'}
+              </div>
+              <button
+                onClick={handleLeaveVictoryScreen}
+                className="mt-8 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-8 py-4 rounded-xl font-bold text-xl text-white shadow-2xl transform hover:scale-105 transition-all"
+              >
+                🚪 Return to Lobby
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Grid background */}
       <div className="qno-grid-bg"></div>
 
@@ -849,6 +1168,7 @@ const GameRoom: React.FC = () => {
                       isTeleportationMode={isTeleportationMode}
                       isFlipping={isFlipping}
                       entangledPlayers={entangledPlayers}
+                      disconnectedPlayers={disconnectedPlayers}
                       mustPlayMeasurement={mustPlayMeasurement}
                       getPlayerPosition={getPlayerPosition}
                       onPlayCard={handlePlayCard}
@@ -928,29 +1248,13 @@ const GameRoom: React.FC = () => {
         <RoomCreationForm
           inputPlayerName={inputPlayerName}
           inputRoomId={inputRoomId}
-          isConnecting={isConnecting}
+          isConnecting={isConnecting || isReconnecting}
           connectionError={connectionError}
           onPlayerNameChange={setInputPlayerName}
           onRoomIdChange={setInputRoomId}
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
-        />
-      )}
-      {gameStarted && (
-        <WebSocketLogWindow 
-          logs={wsLogs}
-          onClear={() => setWsLogs([])}
-        />
-      )}
-      {victoryData && (
-        <VictoryModal
-          isOpen={showVictoryModal}
-          isWinner={victoryData.isWinner}
-          winnerName={victoryData.winnerName}
-          onClose={() => {
-            setShowVictoryModal(false);
-            setVictoryData(null);
-          }}
+          onReconnect={handleReconnect}
         />
       )}
     </div>

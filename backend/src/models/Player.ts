@@ -12,8 +12,12 @@ export class Player {
     public isEntangled: boolean;
     public entanglementPartner: Player | null;
     public entanglementInitiator: Player | null;
+    // Session token for reconnection identification
+    public sessionToken: string;
+    // Tracks if player is currently disconnected (in grace period)
+    public isDisconnected: boolean;
 
-    constructor(id: string, name: string, socket: WebSocket) {
+    constructor(id: string, name: string, socket: WebSocket, sessionToken?: string) {
         this.id = id;
         this.name = name;
         this.socket = socket;
@@ -22,6 +26,8 @@ export class Player {
         this.isEntangled = false;
         this.entanglementPartner = null;
         this.entanglementInitiator = null;
+        this.sessionToken = sessionToken || '';
+        this.isDisconnected = false;
     }
 
     getHand(): Hand {
@@ -37,7 +43,22 @@ export class Player {
     }
 
     sendMessage(message: any) {
-        this.socket.send(JSON.stringify(message));
+        // Don't send messages to disconnected players
+        if (this.isDisconnected) return;
+        try {
+            if (this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify(message));
+            }
+        } catch (error) {
+            // Socket might be closed, mark as disconnected
+            this.isDisconnected = true;
+        }
+    }
+
+    // Update the socket when player reconnects
+    updateSocket(newSocket: WebSocket) {
+        this.socket = newSocket;
+        this.isDisconnected = false;
     }
 
     markReady() {

@@ -24,6 +24,17 @@ export class GameRoom {
     public teleportationState?: TeleportationState | null;
     public drawnCardAwaitingDecision?: Map<string, Card>;
     public entanglementState?: { awaitingPlayerId: string; status: 'AWAITING_SELECTION' | 'COMPLETED' } | null;
+    // Separate pile for entanglement cards - stores the entanglement card while entanglement is active
+    public entanglementPile: Card[];
+    // Store the card that was on top of discard pile when entanglement was played
+    public cardBeforeEntanglement?: Card | null;
+    // Track disconnected players with their reconnection timers
+    public disconnectedPlayers: Map<string, { 
+        playerId: string; 
+        sessionToken: string; 
+        timer: ReturnType<typeof setTimeout>;
+        disconnectedAt: number;
+    }>;
 
     constructor(id: string, host: Player) {
         this.id = id;
@@ -39,6 +50,9 @@ export class GameRoom {
         this.teleportationState = null;
         this.drawnCardAwaitingDecision = new Map();
         this.entanglementState = null;
+        this.entanglementPile = [];
+        this.cardBeforeEntanglement = null;
+        this.disconnectedPlayers = new Map();
     }
 
     public addPlayer(player: Player, playerMap: Map<WebSocket, { roomId: string; playerId: string }>): void {
@@ -108,6 +122,174 @@ export class GameRoom {
     // Check if room is not full and game hasn't started yet
     public canJoin(): boolean {
         return this.players.size < 4 && this.status === GameRoomStatus.NOT_STARTED;
+    }
+
+    // Mark a player as disconnected and start grace period timer
+    public markPlayerDisconnected(
+        playerId: string, 
+        onTimeout: () => void,
+        gracePeriodMs: number = 30000
+    ): void {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        player.isDisconnected = true;
+        
+        // Clear any existing timer for this player
+        const existing = this.disconnectedPlayers.get(playerId);
+        if (existing) {
+            clearTimeout(existing.timer);
+        }
+
+        const timer = setTimeout(() => {
+            onTimeout();
+        }, gracePeriodMs);
+
+        this.disconnectedPlayers.set(playerId, {
+            playerId,
+            sessionToken: player.sessionToken,
+            timer,
+            disconnectedAt: Date.now()
+        });
+
+        Logger.info("PLAYER_DISCONNECTED", `Player: ${playerId} disconnected. Grace period started (${gracePeriodMs / 1000}s) in room: ${this.id}`);
+        
+        // Notify other players
+        this.broadcast({ 
+            type: 'PLAYER_DISCONNECTED', 
+            playerId, 
+            playerName: player.name,
+            gracePeriodMs 
+        }, [playerId]);
+    }
+
+    // Check if a player can reconnect (matching playerId and sessionToken)
+    public canPlayerReconnect(playerId: string, sessionToken: string): boolean {
+        const disconnectedInfo = this.disconnectedPlayers.get(playerId);
+        if (!disconnectedInfo) {
+            // Player might still be in the room but not marked as disconnected
+            const player = this.players.get(playerId);
+            return player !== undefined && player.sessionToken === sessionToken;
+        }
+        return disconnectedInfo.sessionToken === sessionToken;
+    }
+
+    // Reconnect a player - cancel timer and restore their socket
+    public reconnectPlayer(playerId: string, newSocket: WebSocket, playerMap: Map<WebSocket, { roomId: string; playerId: string }>): Player | null {
+        const player = this.players.get(playerId);
+        if (!player) return null;
+
+        // Clear the disconnect timer
+        const disconnectedInfo = this.disconnectedPlayers.get(playerId);
+        if (disconnectedInfo) {
+            clearTimeout(disconnectedInfo.timer);
+            this.disconnectedPlayers.delete(playerId);
+        }
+
+        // Update player's socket
+        player.updateSocket(newSocket);
+        playerMap.set(newSocket, { roomId: this.id, playerId });
+
+        Logger.info("PLAYER_RECONNECTED", `Player: ${playerId} reconnected to room: ${this.id}`);
+
+        // Notify other players
+        this.broadcast({ 
+            type: 'PLAYER_RECONNECTED', 
+            playerId,
+            playerName: player.name 
+        }, [playerId]);
+
+        return player;
+    }
+
+    // Permanently remove a disconnected player (timeout expired)
+    public removeDisconnectedPlayer(playerId: string, rooms: Map<string, GameRoom>): void {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        // Get the player's cards before removing
+        const playerCards = player.getHandCards();
+        
+        // Clear the disconnect timer if it exists
+        const disconnectedInfo = this.disconnectedPlayers.get(playerId);
+        if (disconnectedInfo) {
+            clearTimeout(disconnectedInfo.timer);
+            this.disconnectedPlayers.delete(playerId);
+        }
+
+        // Clear entanglement if the player was entangled
+        if (player.isEntangled && player.entanglementPartner) {
+            player.entanglementPartner.clearEntanglement();
+            // Clear the entanglement pile and restore normal play
+            this.entanglementPile = [];
+            this.cardBeforeEntanglement = null;
+        }
+
+        // Remove player from the game
+        this.players.delete(playerId);
+        this.playerNames.delete(playerId);
+        if (this.turnManager) {
+            this.turnManager.removePlayer(playerId);
+        }
+
+        // Shuffle the player's cards back into the draw pile
+        if (playerCards.length > 0) {
+            this.drawPileManager.addCardsAndShuffle(playerCards);
+            Logger.info("CARDS_RECYCLED", `${playerCards.length} cards from player ${playerId} shuffled back into draw pile in room: ${this.id}`);
+        }
+
+        Logger.info("PLAYER_REMOVED", `Player: ${playerId} permanently removed from room: ${this.id} after timeout`);
+
+        // Check if room should be deleted
+        if (this.players.size === 0) {
+            rooms.delete(this.id);
+            Logger.info("ROOM_DELETED", `Room: ${this.id} was deleted as there were no players left`);
+            return;
+        }
+
+        // If only 1 player left during a game, that player wins
+        if (this.status === GameRoomStatus.IN_PROGRESS && this.players.size === 1) {
+            const winner = Array.from(this.players.values())[0];
+            this.broadcast({ 
+                type: 'GAME_OVER', 
+                winnerId: winner.id, 
+                winnerName: winner.name,
+                reason: 'All other players left the game'
+            });
+            this.status = GameRoomStatus.FINISHED;
+            return;
+        }
+
+        // Notify remaining players
+        this.broadcast({ 
+            type: 'PLAYER_LEFT_PERMANENTLY', 
+            playerId,
+            remainingPlayers: this.players.size,
+            cardsRecycled: playerCards.length
+        });
+
+        // Broadcast updated draw pile top (since cards were added)
+        this.broadcastTopOfDrawPile();
+
+        // If it was this player's turn, advance to next player
+        if (this.turnManager && this.turnManager.getCurrentPlayerId() === playerId) {
+            // The turn manager already removed this player, so current player is now the next one
+            const nextPlayerId = this.turnManager.getCurrentPlayerId();
+            this.broadcast({ type: 'TURN_UPDATE', playerId: nextPlayerId });
+        }
+    }
+
+    // Check if it's a disconnected player's turn
+    public isDisconnectedPlayersTurn(): boolean {
+        if (!this.turnManager) return false;
+        const currentPlayerId = this.turnManager.getCurrentPlayerId();
+        const currentPlayer = this.players.get(currentPlayerId);
+        return currentPlayer?.isDisconnected ?? false;
+    }
+
+    // Get active (connected) player count
+    public getActivePlayerCount(): number {
+        return Array.from(this.players.values()).filter(p => !p.isDisconnected).length;
     }
 
     private sendTopOfDrawPile(player: Player): CardFace | null {
@@ -210,6 +392,46 @@ export class GameRoom {
                 playerNames: playerNamesObj,
                 turnOrder: turnOrder
             });
+        });
+    }
+
+    // Check if there's an active entanglement (cards in entanglement pile)
+    public hasActiveEntanglement(): boolean {
+        return this.entanglementPile.length > 0;
+    }
+
+    // Get the entangled player IDs
+    public getEntangledPlayerIds(): string[] {
+        return Array.from(this.players.values())
+            .filter(p => p.isEntangled)
+            .map(p => p.id);
+    }
+
+    // Add card to entanglement pile
+    public addToEntanglementPile(card: Card): void {
+        this.entanglementPile.push(card);
+    }
+
+    // Clear entanglement pile and return the cards
+    public clearEntanglementPile(): Card[] {
+        const cards = [...this.entanglementPile];
+        this.entanglementPile = [];
+        this.cardBeforeEntanglement = null;
+        return cards;
+    }
+
+    // Broadcast entanglement pile state to all players
+    public broadcastEntanglementPile(): void {
+        const entangledPlayerIds = this.getEntangledPlayerIds();
+        const entanglementCards = this.entanglementPile.map(card => 
+            CardUtils.getActiveFace(card, this.isLightSideActive)
+        );
+
+        this.broadcast({
+            type: 'ENTANGLEMENT_PILE_UPDATE',
+            cards: entanglementCards,
+            entangledPlayerIds: entangledPlayerIds,
+            isActive: this.hasActiveEntanglement()
         });
     }
 }

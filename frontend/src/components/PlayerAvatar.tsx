@@ -8,6 +8,7 @@ interface PlayerAvatarProps {
   position: 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   avatar?: string;
   isEntangled?: boolean;
+  isDisconnected?: boolean;
 }
 
 const avatars = ['🐱', '🐶', '🐭', '🦊', '🐻', '🐼', '🐨', '🦁'];
@@ -19,7 +20,8 @@ const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
   isYou,
   position,
   avatar,
-  isEntangled = false
+  isEntangled = false,
+  isDisconnected = false
 }) => {
   const avatarEmoji = avatar || avatars[Math.abs(name.charCodeAt(0)) % avatars.length];
   
@@ -36,14 +38,25 @@ const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
 
   return (
     <div 
-      className={`absolute ${positionClasses[position]} z-40 transition-all duration-300 ${isCurrentTurn ? 'scale-110' : 'scale-100'} flex flex-col items-center`}
+      className={`absolute ${positionClasses[position]} z-40 transition-all duration-300 ${isCurrentTurn ? 'scale-110' : 'scale-100'} ${isDisconnected ? 'opacity-50' : ''} flex flex-col items-center`}
       style={{
-        filter: isCurrentTurn ? 'drop-shadow(0 0 20px rgba(255, 215, 0, 0.8))' : 'none'
+        filter: isDisconnected 
+          ? 'grayscale(80%)' 
+          : isCurrentTurn 
+            ? 'drop-shadow(0 0 20px rgba(255, 215, 0, 0.8))' 
+            : 'none'
       }}
     >
+      {/* Disconnected Indicator */}
+      {isDisconnected && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full animate-pulse font-bold z-50 flex items-center gap-0.5 whitespace-nowrap">
+          <span>⚠️</span><span>Offline</span>
+        </div>
+      )}
       {/* Name Banner */}
       <div className={`text-center mb-0.5 ${isCurrentTurn ? 'animate-pulse' : ''}`}>
         <div className={`inline-block px-1.5 py-0.5 rounded font-bold text-[10px] shadow-md ${
+          isDisconnected ? 'bg-gray-400 text-gray-700' :
           isYou ? 'bg-yellow-400 text-black' : isCurrentTurn ? 'bg-green-400 text-black' : 'bg-blue-500 text-white'
         }`}>
           {name}

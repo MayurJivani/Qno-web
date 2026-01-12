@@ -598,7 +598,8 @@ const GameRoom: React.FC = () => {
   const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
     // Filter to only show gameplay messages (card plays, effects, entanglement, teleportation)
     const gameActionTypes = [
-      'PLAY_CARD',
+      'PLAYED_CARD',
+      'OPPONENT_PLAYED_CARD',
       'CARD_EFFECT',
       'ENTANGLEMENT_NOTIFICATION',
       'ENTANGLEMENT_COLLAPSED',

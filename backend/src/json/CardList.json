@@ -507,12 +507,12 @@
       "lightSide": {
         "id": 53,
         "color": "black",
-        "value": "Colour Superposition"
+        "value": "Decoherence"
       },
       "darkSide": {
         "id": 53,
         "color": "black",
-        "value": "Colour Superposition"
+        "value": "Decoherence"
       }
     },
     "54": {
@@ -687,12 +687,12 @@
       "lightSide": {
         "id": 53,
         "color": "black",
-        "value": "Colour Superposition"
+        "value": "Decoherence"
       },
       "darkSide": {
         "id": 79,
         "color": "black",
-        "value": "Colour Superposition"
+        "value": "Decoherence"
       }
     },
     "80": {

@@ -252,12 +252,14 @@ export class GameManager {
 
         room.status = GameRoomStatus.FINISHED;
 
-        Logger.info("GAME_END", `Player ${winner.id} won the game in room: ${room.id}`);
+        const winnerName = room.playerNames.get(winner.id) || winner.id.substring(0, 8);
+        Logger.info("GAME_END", `Player ${winner.id} (${winnerName}) won the game in room: ${room.id}`);
 
         room.broadcast({
             type: 'GAME_END',
             winnerId: winner.id,
-            message: `Player ${winner.id.substring(0, 8)}... won the game!`
+            winnerName: winnerName,
+            message: `${winnerName} won the game!`
         });
     }
 

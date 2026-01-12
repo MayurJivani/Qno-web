@@ -22,7 +22,7 @@ afterAll(() => {
     server.close();
 });
 
-test('Colour Superposition should draw and reveal new non-action card', async () => {
+test('Decoherence should draw and reveal new non-action card', async () => {
     const url = `ws://localhost:${port}`;
     const player1 = new WebSockTestClient(url);
     const player2 = new WebSockTestClient(url);
@@ -58,21 +58,21 @@ test('Colour Superposition should draw and reveal new non-action card', async ()
         player1.waitFor('DISCARD_PILE_TOP')
     ]);
 
-    // Find a Colour Superposition card in player1's hand
+    // Find a Decoherence card in player1's hand
     const cardOnTopOfDiscardPile: CardFace = discardPileTopP1.card;
-    let colourSuperpositionCard: Card | undefined;
+    let decoherenceCard: Card | undefined;
     
     for (const card of yourHandP1.hand.cards) {
         const activeCardFace = card.lightSide; // Light side active by default
-        if (activeCardFace.value === ActionCards.WildCard.Colour_Superposition) {
-            // Colour Superposition is a wild card (black), so it can be played on any color
-            colourSuperpositionCard = card;
+        if (activeCardFace.value === ActionCards.WildCard.Decoherence) {
+            // Decoherence is a wild card (black), so it can be played on any color
+            decoherenceCard = card;
             break;
         }
     }
 
-    // If no Colour Superposition card found, skip test
-    if (!colourSuperpositionCard) {
+    // If no Decoherence card found, skip test
+    if (!decoherenceCard) {
         player1.close();
         player2.close();
         return;
@@ -80,8 +80,8 @@ test('Colour Superposition should draw and reveal new non-action card', async ()
 
     const previousDiscardTop = discardPileTopP1.card;
 
-    // Play Colour Superposition card
-    player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: colourSuperpositionCard });
+    // Play Decoherence card
+    player1.send({ type: 'PLAY_CARD', roomId: roomId, playerId: player1Id, card: decoherenceCard });
     
     // Wait for effect and new discard pile top
     const [cardEffectP1, cardEffectP2, newDiscardPileTopP1, newDiscardPileTopP2] = await Promise.all([
@@ -96,8 +96,8 @@ test('Colour Superposition should draw and reveal new non-action card', async ()
     player2.close();
 
     // Assertions
-    expect(cardEffectP1.effect).toEqual(ActionCards.WildCard.Colour_Superposition);
-    expect(cardEffectP2.effect).toEqual(ActionCards.WildCard.Colour_Superposition);
+    expect(cardEffectP1.effect).toEqual(ActionCards.WildCard.Decoherence);
+    expect(cardEffectP2.effect).toEqual(ActionCards.WildCard.Decoherence);
     
     // New discard pile top should be different (a new non-action card was drawn)
     expect(newDiscardPileTopP1.card).not.toEqual(previousDiscardTop);

@@ -78,7 +78,7 @@ export default function RulesPage() {
                     <li>• 76 Number cards</li>
                     <li>• 8 Pauli X</li>
                     <li>• 8 Teleportation</li>
-                    <li>• 4 Colour Superposition</li>
+                    <li>• 4 Decoherence</li>
                     <li>• 8 Measurement</li>
                     <li>• 4 Entanglement</li>
                     <li className="mt-2 text-yellow-300 font-bold">Total: 108 cards</li>
@@ -91,7 +91,7 @@ export default function RulesPage() {
                     <li>• 76 Number cards</li>
                     <li>• 8 Pauli Y</li>
                     <li>• 8 Pauli Z</li>
-                    <li>• 4 Colour Superposition</li>
+                    <li>• 4 Decoherence</li>
                     <li>• 8 Measurement</li>
                     <li>• 4 Superposition</li>
                     <li className="mt-2 text-purple-300 font-bold">Total: 108 cards</li>
@@ -221,7 +221,7 @@ export default function RulesPage() {
                 </div>
               </div>
               <p className="mt-4">
-                <strong className="text-gray-300">BLACK</strong> cards are wild cards and can be played on any color. These include: Measurement, Superposition, Entanglement, and Colour Superposition.
+                <strong className="text-gray-300">BLACK</strong> cards are wild cards and can be played on any color. These include: Measurement, Superposition, Entanglement, and Decoherence.
               </p>
             </div>
           </motion.section>
@@ -267,6 +267,8 @@ export default function RulesPage() {
                 <p>
                   Flips all cards AND reverses the turn direction! This powerful card does both: 
                   changes the active side and flips the turn order (clockwise ↔ anti-clockwise).
+                  <br /><br />
+                  <strong>2-Player Games:</strong> The player who plays Pauli Y gets to repeat their turn!
                 </p>
               </div>
               <div className="bg-purple-900/30 p-4 rounded border border-purple-500">
@@ -274,6 +276,8 @@ export default function RulesPage() {
                 <p>
                   Reverses the turn direction without flipping sides. Use this to change the turn order 
                   (clockwise ↔ anti-clockwise) while keeping the current side active.
+                  <br /><br />
+                  <strong>2-Player Games:</strong> The player who plays Pauli Z gets to repeat their turn!
                 </p>
               </div>
             </div>
@@ -306,7 +310,7 @@ export default function RulesPage() {
                 </p>
               </div>
               <div className="bg-black/50 p-4 rounded border border-gray-500">
-                <h3 className="text-white font-bold mb-2">Colour Superposition</h3>
+                <h3 className="text-white font-bold mb-2">Decoherence</h3>
                 <p>
                   Draws a new non-action card from the draw pile and places it on the discard pile. 
                   This reveals a new card that players can now match!

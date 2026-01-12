@@ -19,6 +19,13 @@ export class CardEffectEngine {
             if (effectResult?.blocked) {
                 return { advanceTurn: true, blocked: true };
             }
+            
+            // In 2-player games, Pauli Y and Z allow the player to repeat their turn
+            if (room.players.size === 2 && 
+                (cardFace.value === ActionCards.Dark.Pauli_Y || cardFace.value === ActionCards.Dark.Pauli_Z)) {
+                return { advanceTurn: false };
+            }
+            
             return { advanceTurn: true };
         }
         // For normal cards, no special handling is needed.
@@ -47,8 +54,8 @@ export class CardEffectEngine {
             case ActionCards.WildCard.Entanglement:
                 this.handleEntanglement(cardFace, room);
                 return undefined;
-            case ActionCards.WildCard.Colour_Superposition:
-                this.handleColourSuperposition(cardFace, room);
+            case ActionCards.WildCard.Decoherence:
+                this.handleDecoherence(cardFace, room);
                 return undefined;
             default:
                 // No special effect, normal card
@@ -311,7 +318,7 @@ export class CardEffectEngine {
         });
     }
 
-    private static handleColourSuperposition(cardFace: CardFace, room: GameRoom) {
+    private static handleDecoherence(cardFace: CardFace, room: GameRoom) {
         const newCardOnTopOfDiscardPile: Card | null = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive);
         if (newCardOnTopOfDiscardPile == null) {
             Logger.error("No non-action cards left in the draw pile");
@@ -319,7 +326,7 @@ export class CardEffectEngine {
         }
         room.discardPileManager.addCardOnTop(newCardOnTopOfDiscardPile, room.isLightSideActive);
         let newCardActiceFace = CardUtils.getActiveFace(newCardOnTopOfDiscardPile, room.isLightSideActive);
-        Logger.info("EFFECT", `Colour Superposition: Colour Superposition card output is ${newCardActiceFace.colour} ${newCardActiceFace.value} in room: ${room.id}`);
+        Logger.info("EFFECT", `Decoherence: Decoherence card output is ${newCardActiceFace.colour} ${newCardActiceFace.value} in room: ${room.id}`);
         room.broadcast({
             type: 'CARD_EFFECT',
             effect: cardFace.value

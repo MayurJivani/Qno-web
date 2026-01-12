@@ -14,13 +14,13 @@ export class CardUtils {
     ];
 
     static lightSideWildCards: string[] = [
-        ActionCards.WildCard.Colour_Superposition,
+        ActionCards.WildCard.Decoherence,
         ActionCards.WildCard.Measurement,
         ActionCards.WildCard.Entanglement
     ]
 
     static darkSideWildCards: string[] = [
-        ActionCards.WildCard.Colour_Superposition,
+        ActionCards.WildCard.Decoherence,
         ActionCards.WildCard.Measurement,
         ActionCards.WildCard.Superposition
     ]

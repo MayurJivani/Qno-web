@@ -13,7 +13,7 @@ export namespace ActionCards {
     export enum WildCard {
         Entanglement = "Entanglement", //only on light side
         Superposition = "Superposition", //only on dark side
-        Colour_Superposition = "Colour_Superposition",
+        Decoherence = "Decoherence",
         Measurement = "Measurement"
     }
 }

@@ -108,9 +108,9 @@ export class DrawPileManager {
 
 		//Generating wild action cards of black colour for the light side card faces
 		for (let i = 0; i < 8; i++) {
-			//4 colour superposition cards (only in first 4 iterations)
+			//4 decoherence cards (only in first 4 iterations)
 			if (i < 4) {
-				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
+				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Decoherence);
 			}
 			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
 			if (i < 4) {
@@ -145,9 +145,9 @@ export class DrawPileManager {
 
 		//Generating wild action cards of black colour for the dark side card faces
 		for (let i = 0; i < 8; i++) {
-			//4 colour superposition cards (only in first 4 iterations)
+			//4 decoherence cards (only in first 4 iterations)
 			if (i < 4) {
-				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Colour_Superposition);
+				this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Decoherence);
 			}
 			this.addCardFace(faces, Colours.WildCard.Black, ActionCards.WildCard.Measurement);
 			if (i < 4) {

@@ -9,6 +9,7 @@ import PlayableCardModal from './PlayableCardModal';
 import GameBoard from './GameBoard';
 import EntanglementSelectionModal from './EntanglementSelectionModal';
 import WebSocketLogWindow, { WSLogEntry } from './WebSocketLogWindow';
+import VictoryModal from './VictoryModal';
 
 interface WSMessage {
   type: string;
@@ -49,11 +50,14 @@ const GameRoom: React.FC = () => {
   const [playableCardDrawn, setPlayableCardDrawn] = useState<{ card: Card; message: string } | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [victoryData, setVictoryData] = useState<{ isWinner: boolean; winnerName: string } | null>(null);
 
   // Use refs for values used in callbacks to avoid dependency issues
   const isLightSideActiveRef = useRef(isLightSideActive);
   const playerIdRef = useRef(playerId);
   const inputPlayerNameRef = useRef(inputPlayerName);
+  const playerNamesRef = useRef(playerNames);
   
   // Notification queue system
   const notificationQueueRef = useRef<Array<{ message: string; type: string; duration: number }>>([]);
@@ -71,6 +75,10 @@ const GameRoom: React.FC = () => {
   useEffect(() => {
     inputPlayerNameRef.current = inputPlayerName;
   }, [inputPlayerName]);
+
+  useEffect(() => {
+    playerNamesRef.current = playerNames;
+  }, [playerNames]);
 
   const allReady = useMemo(() => {
     return players.length > 0 && players.every(id => readyPlayers.has(id));
@@ -334,15 +342,18 @@ const GameRoom: React.FC = () => {
 
 
       case 'GAME_END': {
-        const gameEndData = message as { winnerId?: string; message?: string };
+        const gameEndData = message as { winnerId?: string; winnerName?: string; message?: string };
         setGameStarted(false);
-        if (gameEndData.winnerId === currentPlayerId) {
-          setEffectNotification({ message: '🎉 You Won! 🎉', type: 'victory' });
-        } else {
-          setEffectNotification({ message: `🏆 ${gameEndData.message || 'Game Over!'}`, type: 'gameEnd' });
-        }
-        // Keep notification longer for game end
-        setTimeout(() => setEffectNotification(null), 5000);
+        const winnerId = gameEndData.winnerId;
+        const isWinner = winnerId === currentPlayerId;
+        
+        // Get winner name from message or playerNames state
+        const winnerName = gameEndData.winnerName || 
+          (winnerId && playerNamesRef.current[winnerId]) || 
+          'Someone';
+        
+        setVictoryData({ isWinner, winnerName });
+        setShowVictoryModal(true);
         break;
       }
 
@@ -402,9 +413,9 @@ const GameRoom: React.FC = () => {
           setTimeout(() => setEffectNotification(null), 2000);
         }
         
-        // Handle Colour Superposition effect
-        if (effectData.effect === 'Colour_Superposition') {
-          setEffectNotification({ message: '🌈 Colour Superposition: New Card Revealed!', type: 'superposition' });
+        // Handle Decoherence effect
+        if (effectData.effect === 'Decoherence') {
+          setEffectNotification({ message: '🌈 Decoherence: New Card Revealed!', type: 'superposition' });
           setDiscardPileShake(true);
           setTimeout(() => setDiscardPileShake(false), 500);
           setTimeout(() => setEffectNotification(null), 2000);
@@ -929,6 +940,17 @@ const GameRoom: React.FC = () => {
         <WebSocketLogWindow 
           logs={wsLogs}
           onClear={() => setWsLogs([])}
+        />
+      )}
+      {victoryData && (
+        <VictoryModal
+          isOpen={showVictoryModal}
+          isWinner={victoryData.isWinner}
+          winnerName={victoryData.winnerName}
+          onClose={() => {
+            setShowVictoryModal(false);
+            setVictoryData(null);
+          }}
         />
       )}
     </div>

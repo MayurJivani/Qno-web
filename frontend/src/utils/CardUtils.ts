@@ -14,13 +14,13 @@ export class CardUtils {
     ];
 
     static lightSideWildCards: string[] = [
-        ActionCards.WildCard.Colour_Superposition,
+        ActionCards.WildCard.Decoherence,
         ActionCards.WildCard.Measurement,
         ActionCards.WildCard.Entanglement
     ]
 
     static darkSideWildCards: string[] = [
-        ActionCards.WildCard.Colour_Superposition,
+        ActionCards.WildCard.Decoherence,
         ActionCards.WildCard.Measurement,
         ActionCards.WildCard.Superposition
     ]
@@ -88,8 +88,7 @@ export class CardUtils {
         
         // Handle special cases for better readability with line breaks for long words
         formatted = formatted
-            .replace(/Colour Superposition/gi, 'Colour\nSuperposition')
-            .replace(/Color Superposition/gi, 'Color\nSuperposition')
+            .replace(/Decoherence/gi, 'Decoher\nence')
             .replace(/Teleportation/gi, 'Teleport\nation')
             .replace(/Measurement/gi, 'Measure\nment')
             .replace(/Entanglement/gi, 'Entangle\nment');

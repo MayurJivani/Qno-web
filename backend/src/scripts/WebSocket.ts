@@ -114,6 +114,14 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				}
 				handleDrawnCardDecision(ws, parsed.roomId, parsed.playerId, parsed.decision);
 			},
+			'ENTANGLEMENT_SELECT': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string' || 
+				    typeof parsed.opponent1Id !== 'string' || typeof parsed.opponent2Id !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid entanglement selection' }));
+					return;
+				}
+				handleEntanglementSelection(ws, parsed.roomId, parsed.playerId, parsed.opponent1Id, parsed.opponent2Id);
+			},
 		'GET_GAME_STATE': () => sendGameState(ws),
 	};
 
@@ -245,6 +253,13 @@ const handleDrawnCardDecision = (_ws: WebSocket, roomId: string, playerId: strin
 	if (!result) return;
 	const { room, player } = result;
 	GameManager.handleDrawnCardDecision(room, player, decision);
+};
+
+const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: string, opponent1Id: string, opponent2Id: string) => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	const { room, player } = result;
+	GameManager.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
 };
 
 const rejoinRoom = (ws: WebSocket, roomId: string, playerId: string) => {

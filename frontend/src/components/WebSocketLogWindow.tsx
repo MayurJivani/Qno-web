@@ -79,8 +79,8 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
             return '📊 Measurement: Collapse resolved';
           } else if (effect === 'Entanglement') {
             return '🔗 Entanglement: Players entangled';
-          } else if (effect === 'Colour_Superposition') {
-            return '🌈 Colour Superposition: New card revealed';
+          } else if (effect === 'Decoherence') {
+            return '🌈 Decoherence: New card revealed';
           }
           return `Effect: ${effect}`;
         }

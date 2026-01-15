@@ -22,6 +22,8 @@ interface GameBoardProps {
   entangledPlayers?: Set<string>;
   disconnectedPlayers?: Set<string>;
   mustPlayMeasurement?: boolean;
+  entanglementPileCards?: CardFace[];
+  isEntanglementResolved?: boolean;
   getPlayerPosition: (index: number, totalPlayers: number) => 'top-left' | 'top-right' | 'mid-right' | 'mid-left' | 'bottom-center' | 'top-center' | 'top-left-center' | 'top-right-center';
   onPlayCard: (card: Card) => void;
   onDrawCard: () => void;
@@ -45,6 +47,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
   entangledPlayers = new Set(),
   disconnectedPlayers = new Set(),
   mustPlayMeasurement = false,
+  entanglementPileCards = [],
+  isEntanglementResolved = false,
   getPlayerPosition,
   onPlayCard,
   onDrawCard,
@@ -123,24 +127,58 @@ const GameBoard: React.FC<GameBoardProps> = ({
           )}
         </div>
 
-        {/* Discard Pile - Center */}
-        <div className="flex flex-col items-center relative z-50">
-          <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">DISCARD PILE</div>
-          {discardTop && (
-            <div 
-              className={`relative transition-all duration-300 ${discardPileShake ? 'discard-pile-shake' : ''}`}
-              style={{
-                transform: 'translateZ(50px)',
-                transformStyle: 'preserve-3d'
-              }}
-            >
-              <div className="absolute -bottom-2 -right-2 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-black/40 blur-sm"></div>
-              <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
-                <CardComponent
-                  card={!isLightSideActive ? new Card(undefined, undefined, discardTop) : new Card(undefined, discardTop, undefined)}
-                  isLight={!!isLightSideActive}
-                  className="w-16 h-[88px] sm:w-[72px] sm:h-[104px]"
-                />
+        {/* Discard Pile and Entanglement Pile - Center */}
+        <div className="flex items-center gap-4">
+          {/* Discard Pile */}
+          <div className="flex flex-col items-center relative z-50">
+            <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">DISCARD PILE</div>
+            {discardTop && (
+              <div 
+                className={`relative transition-all duration-300 ${discardPileShake ? 'discard-pile-shake' : ''}`}
+                style={{
+                  transform: 'translateZ(50px)',
+                  transformStyle: 'preserve-3d'
+                }}
+              >
+                <div className="absolute -bottom-2 -right-2 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-black/40 blur-sm"></div>
+                <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
+                  <CardComponent
+                    card={!isLightSideActive ? new Card(undefined, undefined, discardTop) : new Card(undefined, discardTop, undefined)}
+                    isLight={!!isLightSideActive}
+                    className="w-16 h-[88px] sm:w-[72px] sm:h-[104px]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Entanglement Pile - Separate deck next to discard pile */}
+          {entanglementPileCards.length > 0 && (
+            <div className="flex flex-col items-center relative z-50">
+              <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">ENTANGLEMENT</div>
+              <div className="relative" style={{ minHeight: '88px', minWidth: '64px' }}>
+                {entanglementPileCards.map((cardFace, index) => (
+                  <div
+                    key={index}
+                    className={`absolute transition-all duration-600 ${
+                      isEntanglementResolved ? 'translate-x-[-40px] opacity-0 scale-75' : 'opacity-100'
+                    }`}
+                    style={{
+                      transform: `translateZ(${40 - index * 2}px) ${isEntanglementResolved ? 'translateX(-40px) scale(0.75)' : ''}`,
+                      transformStyle: 'preserve-3d',
+                      left: `${index * 4}px`,
+                      top: `${index * 4}px`,
+                      zIndex: 50 - index
+                    }}
+                  >
+                    <div className="absolute -bottom-2 -right-2 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-purple-900/40 blur-sm"></div>
+                    <CardComponent
+                      card={isLightSideActive ? new Card(undefined, cardFace, undefined) : new Card(undefined, undefined, cardFace)}
+                      isLight={isLightSideActive}
+                      className="w-16 h-[88px] sm:w-[72px] sm:h-[104px]"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -28,6 +28,8 @@ export class GameRoom {
     public entanglementPile: Card[];
     // Store the card that was on top of discard pile when entanglement was played
     public cardBeforeEntanglement?: Card | null;
+    // Store the card that was on top of discard pile when superposition was played
+    public cardBeforeSuperposition?: Card | null;
     // Track disconnected players with their reconnection timers
     public disconnectedPlayers: Map<string, { 
         playerId: string; 
@@ -52,6 +54,7 @@ export class GameRoom {
         this.entanglementState = null;
         this.entanglementPile = [];
         this.cardBeforeEntanglement = null;
+        this.cardBeforeSuperposition = null;
         this.disconnectedPlayers = new Map();
     }
 
@@ -327,12 +330,16 @@ export class GameRoom {
     }
 
     private sendTopOfDiscardPile(player: Player): CardFace | null {
-        const topCard: Card | null = this.discardPileManager.getTopCard(this.isLightSideActive);
-        if (!topCard) {
+        // Normal case: show the top card of discard pile
+        // (During entanglement, non-entangled players play cards that get added to the discard pile,
+        // so we show the actual top card, not cardBeforeEntanglement)
+        const cardToShow: Card | null = this.discardPileManager.getTopCard(this.isLightSideActive);
+        
+        if (!cardToShow) {
             Logger.error('Failed to get card on top of discard pile, discard pile might be empty');
             return null;
         }
-        const faceToShow: CardFace | undefined = CardUtils.getActiveFace(topCard, this.isLightSideActive);
+        const faceToShow: CardFace | undefined = CardUtils.getActiveFace(cardToShow, this.isLightSideActive);
         if (!faceToShow) {
             Logger.error('Failed to get active face of card on top of discard pile');
             return null;
@@ -433,5 +440,30 @@ export class GameRoom {
             entangledPlayerIds: entangledPlayerIds,
             isActive: this.hasActiveEntanglement()
         });
+    }
+
+    // Ensure no action card is on top of discard pile - remove action cards until a non-action card is on top
+    public ensureNonActionCardOnTop(): void {
+        while (true) {
+            const topCard = this.discardPileManager.getTopCard(this.isLightSideActive);
+            if (!topCard) {
+                // No cards left - draw a non-action card
+                const newCard = this.drawPileManager.drawFirstNonActionCard(this.isLightSideActive);
+                if (newCard) {
+                    this.discardPileManager.addCardOnTop(newCard, this.isLightSideActive);
+                }
+                break;
+            }
+            
+            const topCardFace = CardUtils.getActiveFace(topCard, this.isLightSideActive);
+            if (!CardUtils.isActionCard(topCardFace)) {
+                // Top card is not an action card - we're done
+                break;
+            }
+            
+            // Remove the action card from top
+            this.discardPileManager.removeCardAtIndex(0, this.isLightSideActive);
+            Logger.info("DISCARD_PILE", `Removed action card ${topCardFace.colour} ${topCardFace.value} from top of discard pile in room: ${this.id}`);
+        }
     }
 }

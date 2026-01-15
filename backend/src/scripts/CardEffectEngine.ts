@@ -63,9 +63,15 @@ export class CardEffectEngine {
         }
     }
 
-    static checkValidMove(cardPlayed: Card, room: GameRoom): boolean {
-        const activeCardFaceOnTopOfDiscardPile: CardFace | null = room.discardPileManager.getActiveFaceOfTopCard(room.isLightSideActive);
+    static checkValidMove(cardPlayed: Card, room: GameRoom, player?: any): boolean {
         const activeCardFacePlayed: CardFace = CardUtils.getActiveFace(cardPlayed, room.isLightSideActive)
+        
+        // If player is entangled, they can ONLY play Measurement cards
+        if (player && player.isEntangled) {
+            return activeCardFacePlayed.value === ActionCards.WildCard.Measurement;
+        }
+        
+        const activeCardFaceOnTopOfDiscardPile: CardFace | null = room.discardPileManager.getActiveFaceOfTopCard(room.isLightSideActive);
         // If discard pile is empty i.e. no card has been played yet
         if (!activeCardFaceOnTopOfDiscardPile) {
             return true;
@@ -92,6 +98,10 @@ export class CardEffectEngine {
         room.isLightSideActive = !room.isLightSideActive;
         const activeSide: string = room.isLightSideActive ? "light side" : "dark side"
         Logger.info("EFFECT", `Pauli_X: Flipping active side to ${activeSide} in room: ${room.id}`);
+        
+        // Ensure no action card is on top of discard pile after flip
+        room.ensureNonActionCardOnTop();
+        
         room.broadcast({
             type: 'CARD_EFFECT',
             effect: cardFace.value,
@@ -113,6 +123,10 @@ export class CardEffectEngine {
         const currentDirection: Direction = room.turnManager?.getDirection()!;
         const direction: string = currentDirection == Direction.Clockwise ? "clockwise" : "anti-clockwise"
         Logger.info("EFFECT", `Pauli_Y: Flipping active side to ${activeSide} and direction to ${direction} in room: ${room.id}`);
+        
+        // Ensure no action card is on top of discard pile after flip
+        room.ensureNonActionCardOnTop();
+        
         room.broadcast({
             type: 'CARD_EFFECT',
             effect: cardFace.value,
@@ -287,71 +301,76 @@ export class CardEffectEngine {
         const cardBelowFace = CardUtils.getActiveFace(cardBelowMeasurement, room.isLightSideActive);
         
         if (cardBelowFace.value == ActionCards.WildCard.Superposition) {
-            // Superposition collapse: 50/50 chance between light side and dark side of the card BELOW superposition
-            // Get the card that was played before the Superposition (2 levels down from Measurement)
-            const rawDiscardPile = room.discardPileManager.getRawDiscardPile();
-            const pileLength = rawDiscardPile.length;
-            
-            if (pileLength >= 3) {
-                // Index: 0 = Measurement, 1 = Superposition, 2 = card before superposition
-                const cardBeforeSuperpositionIndex = room.isLightSideActive ? 2 : pileLength - 3;
-                const cardBeforeSuperposition = rawDiscardPile[cardBeforeSuperpositionIndex];
+            // Measurement resolves superposition: 50/50 chance between light side and dark side
+            if (room.cardBeforeSuperposition) {
+                // Get the card to restore before clearing it
+                const restoredCard = room.cardBeforeSuperposition;
                 
-                if (cardBeforeSuperposition) {
-                    // 50/50 random choice between light side and dark side
-                    const collapseToLightSide = Math.random() < 0.5;
-                    
-                    // Get the face that the superposition collapses into
-                    const collapsedFace = collapseToLightSide 
-                        ? cardBeforeSuperposition.lightSide 
-                        : cardBeforeSuperposition.darkSide;
-                    
-                    // Remove the Superposition card (index 1)
-                    room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
-                    
-                    // The card before superposition is now at index 1, bring it to top
-                    room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
-                    room.discardPileManager.addCardOnTop(cardBeforeSuperposition, room.isLightSideActive);
-                    
-                    // Update the active side based on which face the superposition collapsed into
-                    // If collapsed to light side, light side should be active; if dark side, dark side should be active
-                    const previousLightSideActive = room.isLightSideActive;
-                    room.isLightSideActive = collapseToLightSide;
-                    
-                    Logger.info("EFFECT", `Measurement: Superposition collapsed into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
-                    
-                    // Include isLightSideActive at top level when the side changes so frontend can trigger flip animation
-                    const sideChanged = previousLightSideActive !== room.isLightSideActive;
-                    room.broadcast({
-                        type: 'CARD_EFFECT',
-                        effect: cardFace.value,
-                        ...(sideChanged && { isLightSideActive: room.isLightSideActive }),
-                        superpositionCollapse: {
-                            collapsedCard: collapsedFace,
-                            collapsedToSide: collapseToLightSide ? 'light' : 'dark',
-                            isLightSideActive: room.isLightSideActive,
-                            sideFlipped: sideChanged
-                        }
-                    });
-                    
-                    // If the active side changed, broadcast the change
-                    if (sideChanged) {
-                        room.broadcastOpponentHands();
-                        room.broadcastTopOfDrawPile();
-                    }
-                    
-                    return;
+                // 50/50 random choice between light side and dark side
+                const collapseToLightSide = Math.random() < 0.5;
+                
+                // Remove the Measurement card (index 0) and the Superposition card (index 1)
+                room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive); // Remove Measurement
+                room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive); // Remove Superposition
+                
+                // Get the face that the superposition collapses into
+                const collapsedFace = collapseToLightSide 
+                    ? restoredCard.lightSide 
+                    : restoredCard.darkSide;
+                
+                // Update the active side based on which face the superposition collapsed into
+                const previousLightSideActive = room.isLightSideActive;
+                room.isLightSideActive = collapseToLightSide;
+                
+                // Restore the original card on top (with the chosen side active)
+                room.discardPileManager.addCardOnTop(restoredCard, room.isLightSideActive);
+                
+                // Clear the saved card
+                room.cardBeforeSuperposition = null;
+                
+                const sideChanged = previousLightSideActive !== room.isLightSideActive;
+                
+                Logger.info("EFFECT", `Measurement: Superposition collapsed into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
+                
+                // Broadcast the effect with side change information
+                room.broadcast({
+                    type: 'CARD_EFFECT',
+                    effect: cardFace.value,
+                    additionalEffect: 'SUPERPOSITION_RESOLVED',
+                    superpositionCollapse: {
+                        restoredCard: collapsedFace,
+                        collapsedToSide: collapseToLightSide ? 'light' : 'dark',
+                        isLightSideActive: room.isLightSideActive,
+                        sideFlipped: sideChanged
+                    },
+                    ...(sideChanged && { isLightSideActive: room.isLightSideActive })
+                });
+                
+                // If the active side changed, broadcast the change (like Pauli X does)
+                if (sideChanged) {
+                    room.broadcastOpponentHands();
+                    room.broadcastTopOfDrawPile();
                 }
+                
+                // Ensure no action card is on top of discard pile after resolution
+                room.ensureNonActionCardOnTop();
+                
+                // Broadcast updated discard pile
+                room.broadcastTopOfDiscardPile();
+                return;
+            } else {
+                // Fallback if we can't find the card before superposition (shouldn't happen normally)
+                Logger.error(`Measurement: Could not find cardBeforeSuperposition in room: ${room.id}`);
             }
-            
-            // Fallback if we can't find the card before superposition (shouldn't happen normally)
-            Logger.error(`Measurement: Could not find card before Superposition in room: ${room.id}`);
         }
         
         // Normal measurement (not on Superposition): reveal the card below
         // Index 0 will be the measurement card just played, Index 1 will be the card below the measurement card. 
         room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
         room.discardPileManager.addCardOnTop(cardBelowMeasurement, room.isLightSideActive);
+        
+        // Ensure no action card is on top of discard pile after measurement
+        room.ensureNonActionCardOnTop();
         
         let measuredCardActiveFace = CardUtils.getActiveFace(cardBelowMeasurement, room.isLightSideActive);
         Logger.info("EFFECT", `Measurement: Measurement card output is ${measuredCardActiveFace.colour} ${measuredCardActiveFace.value} in room: ${room.id}`);
@@ -362,12 +381,19 @@ export class CardEffectEngine {
     }
 
     private static handleDecoherence(cardFace: CardFace, room: GameRoom) {
+        // Remove the Decoherence card from top
+        room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
+        
         const newCardOnTopOfDiscardPile: Card | null = room.drawPileManager.drawFirstNonActionCard(room.isLightSideActive);
         if (newCardOnTopOfDiscardPile == null) {
             Logger.error("No non-action cards left in the draw pile");
             return;
         }
         room.discardPileManager.addCardOnTop(newCardOnTopOfDiscardPile, room.isLightSideActive);
+        
+        // Ensure no action card is on top (should already be non-action, but double-check)
+        room.ensureNonActionCardOnTop();
+        
         let newCardActiceFace = CardUtils.getActiveFace(newCardOnTopOfDiscardPile, room.isLightSideActive);
         Logger.info("EFFECT", `Decoherence: Decoherence card output is ${newCardActiceFace.colour} ${newCardActiceFace.value} in room: ${room.id}`);
         room.broadcast({
@@ -556,45 +582,52 @@ export class CardEffectEngine {
         if (cardBelow) {
             const cardBelowFace = CardUtils.getActiveFace(cardBelow, room.isLightSideActive);
             
-            // If playing Superposition on top of another Superposition, collapse the previous one
+            // If playing Superposition on top of another Superposition, restore the original card
             if (cardBelowFace.value === ActionCards.WildCard.Superposition) {
-                // Get the card that was below the previous Superposition (2 levels down)
-                // We need to find the card at index 2 (0 = new superposition, 1 = old superposition, 2 = card before)
-                const rawDiscardPile = room.discardPileManager.getRawDiscardPile();
-                const pileLength = rawDiscardPile.length;
-                
-                if (pileLength >= 3) {
-                    // Get the card at index 2 (considering light/dark side orientation)
-                    const cardBeforeSuperpositionIndex = room.isLightSideActive ? 2 : pileLength - 3;
-                    const cardBeforeSuperposition = rawDiscardPile[cardBeforeSuperpositionIndex];
+                // Restore the original card that was before the first superposition
+                if (room.cardBeforeSuperposition) {
+                    // Get the face of the card to restore before clearing it
+                    const restoredCard = room.cardBeforeSuperposition;
+                    const revealedFace = CardUtils.getActiveFace(restoredCard, room.isLightSideActive);
                     
-                    if (cardBeforeSuperposition) {
-                        // Remove the old Superposition card (index 1)
-                        room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
-                        
-                        // Now remove the card that was before superposition (now at index 1) and put it on top
-                        room.discardPileManager.removeCardAtIndex(1, room.isLightSideActive);
-                        room.discardPileManager.addCardOnTop(cardBeforeSuperposition, room.isLightSideActive);
-                        
-                        const revealedFace = CardUtils.getActiveFace(cardBeforeSuperposition, room.isLightSideActive);
-                        Logger.info("EFFECT", `Superposition on Superposition: Collapsed into ${revealedFace.colour} ${revealedFace.value} in room: ${room.id}`);
-                        
-                        room.broadcast({
-                            type: 'CARD_EFFECT',
-                            effect: cardFace.value,
-                            additionalEffect: 'SUPERPOSITION_COLLAPSED',
-                            collapsedCard: revealedFace
-                        });
-                        
-                        // Broadcast updated discard pile
-                        room.broadcastTopOfDiscardPile();
-                        return;
-                    }
+                    // Remove both superposition cards (the new one on top and the old one)
+                    room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive); // Remove new superposition
+                    room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive); // Remove old superposition
+                    
+                    // Restore the original card on top
+                    room.discardPileManager.addCardOnTop(restoredCard, room.isLightSideActive);
+                    
+                    // Clear the saved card
+                    room.cardBeforeSuperposition = null;
+                    
+                    Logger.info("EFFECT", `Superposition resolved: Original card ${revealedFace.colour} ${revealedFace.value} restored in room: ${room.id}`);
+                    
+                    // Ensure no action card is on top of discard pile after resolution
+                    room.ensureNonActionCardOnTop();
+                    
+                    room.broadcast({
+                        type: 'CARD_EFFECT',
+                        effect: cardFace.value,
+                        additionalEffect: 'SUPERPOSITION_RESOLVED',
+                        restoredCard: revealedFace
+                    });
+                    
+                    // Broadcast updated discard pile
+                    room.broadcastTopOfDiscardPile();
+                    return;
+                } else {
+                    Logger.error(`Superposition on Superposition: No cardBeforeSuperposition saved in room: ${room.id}`);
                 }
             }
         }
         
-        // Normal Superposition - just played, waiting for Measurement
+        // Normal Superposition - just played, save the card that was below it
+        // The card below is the one that was on top before superposition was played
+        if (!room.cardBeforeSuperposition && cardBelow) {
+            room.cardBeforeSuperposition = cardBelow;
+            Logger.info("EFFECT", `Superposition: Saved card below superposition in room: ${room.id}`);
+        }
+        
         Logger.info("EFFECT", `Superposition: Superposition card has been played in room: ${room.id}`);
         room.broadcast({
             type: 'CARD_EFFECT',
@@ -674,10 +707,10 @@ export class CardEffectEngine {
         firstPlayer.clearEntanglement();
         secondPlayer.clearEntanglement();
 
-        // Move cards from entanglement pile to discard pile
+        // Move cards from entanglement pile to the middle of discard pile
         const entanglementCards = room.clearEntanglementPile();
         for (const card of entanglementCards) {
-            room.discardPileManager.addCardOnTop(card, room.isLightSideActive);
+            room.discardPileManager.insertCardInMiddle(card, room.isLightSideActive);
         }
 
         // Determine which player drew 3 cards
@@ -720,8 +753,14 @@ export class CardEffectEngine {
         // This handles cases like Superposition on the discard pile
         this.applyMeasurementEffectOnDiscardPile(room);
 
+        // Ensure no action card is on top of discard pile after entanglement resolution
+        room.ensureNonActionCardOnTop();
+
         // Broadcast updated draw pile
         room.broadcastTopOfDrawPile();
+        
+        // Broadcast updated discard pile
+        room.broadcastTopOfDiscardPile();
 
         // Check win conditions
         if (firstPlayer.getHandCards().length === 0) {
@@ -741,45 +780,62 @@ export class CardEffectEngine {
 
         const topCardFace = CardUtils.getActiveFace(topCard, room.isLightSideActive);
         
-        // Check if the top card is Superposition - if so, collapse it
+        // Check if the top card is Superposition - if so, restore the original card with 50/50 chance
         if (topCardFace.value === ActionCards.WildCard.Superposition) {
-            // Get the card below Superposition (the card it was played on)
-            const cardBelowSuperposition: Card | null = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive);
-            
-            if (cardBelowSuperposition) {
+            // Restore the original card that was before superposition with 50/50 chance
+            if (room.cardBeforeSuperposition) {
+                // Get the card to restore before clearing it
+                const restoredCard = room.cardBeforeSuperposition;
+                
                 // 50/50 random choice between light side and dark side
                 const collapseToLightSide = Math.random() < 0.5;
                 
                 // Get the face that the superposition collapses into
                 const collapsedFace = collapseToLightSide 
-                    ? cardBelowSuperposition.lightSide 
-                    : cardBelowSuperposition.darkSide;
+                    ? restoredCard.lightSide 
+                    : restoredCard.darkSide;
                 
                 // Remove the Superposition card (index 0 - it's on top)
                 room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
                 
-                // The card below is now on top, but we need to update the active side
+                // Update the active side based on which face the superposition collapsed into
                 const previousLightSideActive = room.isLightSideActive;
                 room.isLightSideActive = collapseToLightSide;
                 
-                Logger.info("EFFECT", `Measurement collapsed Superposition into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
+                // Restore the original card on top (with the chosen side active)
+                room.discardPileManager.addCardOnTop(restoredCard, room.isLightSideActive);
                 
+                // Clear the saved card
+                room.cardBeforeSuperposition = null;
+                
+                const sideChanged = previousLightSideActive !== room.isLightSideActive;
+                
+                Logger.info("EFFECT", `Measurement resolved Superposition: Collapsed into ${collapsedFace.colour} ${collapsedFace.value} (${collapseToLightSide ? 'light' : 'dark'} side) in room: ${room.id}`);
+                
+                // Broadcast the effect with side change information
                 room.broadcast({
                     type: 'CARD_EFFECT',
                     effect: ActionCards.WildCard.Measurement,
-                    additionalEffect: 'SUPERPOSITION_COLLAPSED',
+                    additionalEffect: 'SUPERPOSITION_RESOLVED',
                     superpositionCollapse: {
-                        collapsedCard: collapsedFace,
+                        restoredCard: collapsedFace,
                         collapsedToSide: collapseToLightSide ? 'light' : 'dark',
-                        isLightSideActive: room.isLightSideActive
-                    }
+                        isLightSideActive: room.isLightSideActive,
+                        sideFlipped: sideChanged
+                    },
+                    ...(sideChanged && { isLightSideActive: room.isLightSideActive })
                 });
                 
-                // If the active side changed, broadcast the change
-                if (previousLightSideActive !== room.isLightSideActive) {
+                // If the active side changed, broadcast the change (like Pauli X does)
+                if (sideChanged) {
                     room.broadcastOpponentHands();
                     room.broadcastTopOfDrawPile();
                 }
+                
+                // Ensure no action card is on top of discard pile after superposition resolution
+                room.ensureNonActionCardOnTop();
+            } else {
+                Logger.error(`Measurement: Could not find cardBeforeSuperposition in room: ${room.id}`);
             }
         } else {
             // Normal measurement effect - bring the card below to the top
@@ -796,6 +852,9 @@ export class CardEffectEngine {
                     effect: ActionCards.WildCard.Measurement,
                     revealedCard: cardBelowFace
                 });
+                
+                // Ensure no action card is on top of discard pile after measurement
+                room.ensureNonActionCardOnTop();
             }
         }
         

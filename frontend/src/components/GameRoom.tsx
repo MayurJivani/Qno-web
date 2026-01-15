@@ -44,6 +44,8 @@ const GameRoom: React.FC = () => {
   const [isEntanglementMode, setIsEntanglementMode] = useState(false);
   const [entanglementOpponents, setEntanglementOpponents] = useState<Array<{ id: string; name: string }>>([]);
   const [entangledPlayers, setEntangledPlayers] = useState<Set<string>>(new Set());
+  const [entanglementPileCards, setEntanglementPileCards] = useState<CardFace[]>([]);
+  const [isEntanglementResolved, setIsEntanglementResolved] = useState(false);
   const [mustPlayMeasurement, setMustPlayMeasurement] = useState(false);
   const [turnDirection, setTurnDirection] = useState<'clockwise' | 'anti-clockwise'>('clockwise');
   const [discardPileShake, setDiscardPileShake] = useState(false);
@@ -432,22 +434,43 @@ const GameRoom: React.FC = () => {
         
         // Handle Measurement effect (including superposition collapse)
         if (effectData.effect === 'Measurement') {
-          const superpositionCollapseData = effectData as { 
+          const measurementData = effectData as { 
+            additionalEffect?: string;
             superpositionCollapse?: { 
+              restoredCard?: { colour?: string; value?: string };
               collapsedCard?: { colour?: string; value?: string };
               collapsedToSide?: string;
               sideFlipped?: boolean;
-            } 
+              isLightSideActive?: boolean;
+            };
+            isLightSideActive?: boolean;
           };
           
-          if (superpositionCollapseData.superpositionCollapse) {
-            // Superposition collapsed via Measurement
-            const collapse = superpositionCollapseData.superpositionCollapse;
-            const collapsedCard = collapse.collapsedCard;
-            const cardDesc = collapsedCard ? `${collapsedCard.colour} ${collapsedCard.value}` : 'a card';
+          // Check if this is superposition resolution
+          if (measurementData.additionalEffect === 'SUPERPOSITION_RESOLVED' && measurementData.superpositionCollapse) {
+            const collapse = measurementData.superpositionCollapse;
+            const restoredCard = collapse.restoredCard || collapse.collapsedCard; // Support both property names
+            const cardDesc = restoredCard ? `${restoredCard.colour} ${restoredCard.value}` : 'a card';
             
             if (collapse.sideFlipped) {
               // Side changed - show flip message
+              setEffectNotification({ 
+                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`, 
+                type: 'measurement' 
+              });
+            } else {
+              setEffectNotification({ 
+                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`, 
+                type: 'measurement' 
+              });
+            }
+          } else if (measurementData.superpositionCollapse) {
+            // Legacy support for old format
+            const collapse = measurementData.superpositionCollapse;
+            const collapsedCard = collapse.restoredCard || collapse.collapsedCard;
+            const cardDesc = collapsedCard ? `${collapsedCard.colour} ${collapsedCard.value}` : 'a card';
+            
+            if (collapse.sideFlipped) {
               setEffectNotification({ 
                 message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`, 
                 type: 'measurement' 
@@ -569,10 +592,41 @@ const GameRoom: React.FC = () => {
             return updated;
           });
 
+          // Trigger slide animation to move entanglement cards to middle
+          setIsEntanglementResolved(true);
+          // Clear entanglement pile after animation
+          setTimeout(() => {
+            setEntanglementPileCards([]);
+            setIsEntanglementResolved(false);
+          }, 600); // Match animation duration
+
           // Note: The notification about who drew 3/0 cards is handled by ENTANGLEMENT_NOTIFICATION
           // which is broadcast to all players from the backend with the correct player names
         }
         setMustPlayMeasurement(false);
+        break;
+      }
+
+      case 'ENTANGLEMENT_PILE_UPDATE': {
+        const pileData = message as {
+          cards?: CardFace[];
+          entangledPlayerIds?: string[];
+          isActive?: boolean;
+        };
+        if (pileData.cards) {
+          setEntanglementPileCards(pileData.cards);
+        }
+        if (pileData.entangledPlayerIds) {
+          setEntangledPlayers(new Set(pileData.entangledPlayerIds));
+        }
+        if (pileData.isActive === false) {
+          // Entanglement resolved - clear the pile
+          setIsEntanglementResolved(true);
+          setTimeout(() => {
+            setEntanglementPileCards([]);
+            setIsEntanglementResolved(false);
+          }, 600);
+        }
         break;
       }
 
@@ -854,10 +908,11 @@ const GameRoom: React.FC = () => {
       }
 
       case 'ENTANGLEMENT_PILE': {
-        // Handle entanglement pile update (for reconnection)
+        // Handle entanglement pile update (for reconnection) - legacy support
         // The pile contains the cards in the entanglement pile
         const pileData = message as { pile?: CardFace[] };
         if (pileData.pile && pileData.pile.length > 0) {
+          setEntanglementPileCards(pileData.pile);
           // There's an active entanglement - update UI accordingly
           queueNotification('🔗 Entanglement is active', 'entanglement', 2000);
         }
@@ -1170,6 +1225,8 @@ const GameRoom: React.FC = () => {
                       entangledPlayers={entangledPlayers}
                       disconnectedPlayers={disconnectedPlayers}
                       mustPlayMeasurement={mustPlayMeasurement}
+                      entanglementPileCards={entanglementPileCards}
+                      isEntanglementResolved={isEntanglementResolved}
                       getPlayerPosition={getPlayerPosition}
                       onPlayCard={handlePlayCard}
                       onDrawCard={handleDrawCard}

@@ -31,8 +31,24 @@ export class DiscardPileManager {
 
     public removeCardAtIndex(index: number, isLightSideActive: boolean): Card | null {
         if (index < 0 || index > this.discardPile.length - 1) return null;
-        const cardRemoved: Card[] = isLightSideActive ? this.discardPile.splice(index, 1) : this.discardPile.splice((this.discardPile.length - 1) - index, 1);
-        return cardRemoved[0];
+        
+        // Get the actual index considering light/dark side orientation
+        const actualIndex = isLightSideActive ? index : (this.discardPile.length - 1) - index;
+        
+        // Get the card to move
+        const cardToMove = this.discardPile[actualIndex];
+        if (!cardToMove) return null;
+        
+        // Remove the card from its current position
+        this.discardPile.splice(actualIndex, 1);
+        
+        // Calculate middle index (considering the array is now one element shorter)
+        const middleIndex = Math.floor(this.discardPile.length / 2);
+        
+        // Insert the card at the middle position
+        this.discardPile.splice(middleIndex, 0, cardToMove);
+        
+        return cardToMove;
     }
 
     public getDiscardPileCardCount(): number {
@@ -41,6 +57,18 @@ export class DiscardPileManager {
 
     public getRawDiscardPile(): Card[] {
         return this.discardPile;
+    }
+
+    // Insert card in the middle of the discard pile
+    public insertCardInMiddle(card: Card, isLightSideActive: boolean): void {
+        const middleIndex = Math.floor(this.discardPile.length / 2);
+        if (isLightSideActive) {
+            this.discardPile.splice(middleIndex, 0, card);
+        } else {
+            // For dark side, insert from the end
+            const reverseIndex = this.discardPile.length - middleIndex;
+            this.discardPile.splice(reverseIndex, 0, card);
+        }
     }
 
 }

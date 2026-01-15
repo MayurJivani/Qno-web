@@ -35,8 +35,7 @@ export class GameManager {
             roomId: room.id,
             currentPlayer: room.getCurrentPlayerId(),
             direction: room.turnManager!.getDirection(),
-            playerNames: playerNamesObj,
-            turnOrder: room.turnManager!.getPlayerOrder()
+            playerNames: playerNamesObj
         });
 
         this.dealCards(room);
@@ -64,19 +63,13 @@ export class GameManager {
             playerNamesObj[id] = name;
         });
 
-        // Get turn order from TurnManager
-        const turnOrder = room.turnManager ? room.turnManager.getPlayerOrder() : Array.from(room.players.keys());
-
         room.players.forEach(p => {
             const opponentPlayersHands: Record<string, CardFace[]> = {};
-            
-            // Maintain turn order when building opponentHands
-            const opponentIds = turnOrder.filter(id => id !== p.id);
-            opponentIds.forEach(opId => {
-                const op = room.players.get(opId);
-                if (op) {
-                    opponentPlayersHands[opId] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, room.isLightSideActive));
-                }
+            const opponents = Array.from(room.players.values()).filter(op => op.id !== p.id);
+
+            opponents.forEach(op => {
+                // Each player should only see the inactive card faces of the opponents hands (without the id's)
+                opponentPlayersHands[op.id] = op.getHandCards().map(card => CardUtils.getInactiveFace(card, room.isLightSideActive));
             });
 
             // Each player sees complete information about their hand (along with id of the cards)
@@ -88,8 +81,7 @@ export class GameManager {
             p.sendMessage({
                 type: 'OPPONENT_HAND',
                 opponentHands: opponentPlayersHands,
-                playerNames: playerNamesObj,
-                turnOrder: turnOrder
+                playerNames: playerNamesObj
             });
         });
     }
@@ -115,65 +107,49 @@ export class GameManager {
             return;
         }
 
-        // Check if player is entangled
+        let cardFacePlayed: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
+
+        // If player is entangled, they can ONLY play Measurement card
         if (player.isEntangled) {
-            const cardFacePlayed = CardUtils.getActiveFace(card, room.isLightSideActive);
-            
             // Entangled players can ONLY play Measurement card (on the entanglement pile)
             if (cardFacePlayed.value !== ActionCards.WildCard.Measurement) {
                 player.sendMessage({
                     type: 'ERROR',
-                    message: 'You are entangled! You can only play a Measurement card to break the entanglement, or draw a card.'
+                    message: 'You are entangled! You can only play a Measurement card to resolve the entanglement.'
                 });
                 return;
             }
             
-            // Player is playing Measurement to break entanglement
-            // Remove the card from the player's hand
+            // Measurement card is played on the entanglement pile, not the main discard pile
             player.setHandCards(player.getHandCards().filter(c => !CardUtils.areCardsEqual(c, card)));
             
-            // Add Measurement to entanglement pile (not main discard pile)
+            // Add Measurement card to the entanglement pile
             room.addToEntanglementPile(card);
             
-            const effectType = cardFacePlayed.value;
-
             player.sendMessage({
                 type: 'PLAYED_CARD',
                 card: cardFacePlayed,
                 playerId: player.id,
-                effect: effectType,
+                effect: ActionCards.WildCard.Measurement,
                 onEntanglementPile: true
             });
-
+            
             room.broadcast({
                 type: 'OPPONENT_PLAYED_CARD',
                 card: cardFacePlayed,
                 opponentId: player.id,
-                effect: effectType,
+                effect: ActionCards.WildCard.Measurement,
                 onEntanglementPile: true
             }, [player.id]);
-
-            Logger.info("PLAYED_CARD", `Player: ${player.id} played Measurement on entanglement pile in room: ${room.id}.`);
-
-            // Handle the entanglement collapse
-            CardEffectEngine.handleMeasurementOnEntanglement(room, player, card);
             
-            // Broadcast updated opponent hands
-            room.broadcastOpponentHands();
-
-            // Check win condition
-            if (player.getHandCards().length === 0) {
-                GameManager.endGame(room, player);
-                return;
-            }
-
-            // Advance turn normally after measurement
-            GameManager.handleRoomUpdate(room, { advanceTurn: true });
+            Logger.info("PLAYED_CARD", `Player: ${player.id} played Measurement on entanglement pile in room: ${room.id}.`);
+            
+            room.broadcastEntanglementPile();
+            
+            CardEffectEngine.handleMeasurementOnEntanglement(room, player, card);
             return;
         }
-
-        let cardFacePlayed: CardFace = CardUtils.getActiveFace(card, room.isLightSideActive);
-        if (CardEffectEngine.checkValidMove(card, room)) {
+        if (CardEffectEngine.checkValidMove(card, room, player)) {
             // Remove the card from the player's hand if it is a valid move
             // TODO: Check if the card being played actually exists in the player's hand or not
             player.setHandCards(player.getHandCards().filter(c => !CardUtils.areCardsEqual(c, card)));
@@ -197,6 +173,12 @@ export class GameManager {
 
             Logger.info("PLAYED_CARD", ` Player: ${player.id} played a ${cardFacePlayed.colour} ${cardFacePlayed.value} card in room: ${room.id}.`);
 
+            // If entanglement is active and this is a non-entangled player, update cardBeforeEntanglement
+            // so other non-entangled players can continue playing on the new top card
+            if (room.hasActiveEntanglement() && !player.isEntangled) {
+                room.cardBeforeEntanglement = card;
+            }
+
             // Broadcast updated opponent hands to all players after card is played
             room.broadcastOpponentHands();
 
@@ -210,14 +192,41 @@ export class GameManager {
             // The entanglement card goes to a separate pile, not the main discard pile
             // Other players continue playing on the card before entanglement
             if (cardFacePlayed.value == ActionCards.WildCard.Entanglement) {
+                // Check if an entanglement is already active BEFORE doing anything
+                if (room.hasActiveEntanglement()) {
+                    // Return card to player's hand
+                    player.getHand().addCard(card);
+                    // Remove card from discard pile
+                    room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
+                    
+                    player.sendMessage({
+                        type: 'YOUR_HAND',
+                        hand: player.getHand()
+                    });
+                    player.sendMessage({
+                        type: 'ERROR',
+                        message: 'Cannot play Entanglement: An entanglement is already active. Wait for it to be resolved first.'
+                    });
+                    
+                    // Update discard pile top
+                    room.broadcastTopOfDiscardPile();
+                    room.broadcastOpponentHands();
+                    
+                    Logger.info("ENTANGLEMENT_BLOCKED", `Player ${player.id} tried to play Entanglement while one is already active in room: ${room.id}`);
+                    return;
+                }
+                
+                // Store the card that was on top before entanglement
+                room.cardBeforeEntanglement = room.discardPileManager.getCardBelowTopCard(room.isLightSideActive);
+                
                 // Remove entanglement card from discard pile (it was just added there)
                 room.discardPileManager.removeCardAtIndex(0, room.isLightSideActive);
                 
-                // Store the card that was on top before entanglement
-                room.cardBeforeEntanglement = room.discardPileManager.getTopCard(room.isLightSideActive);
-                
                 // Add entanglement card to the separate entanglement pile
                 room.addToEntanglementPile(card);
+                
+                // Broadcast the correct discard pile top (the card before entanglement)
+                room.broadcastTopOfDiscardPile();
                 
                 CardEffectEngine.handleCardEffect(card, room);
                 
@@ -280,11 +289,6 @@ export class GameManager {
         GameManager.handleRoomUpdate(room, effectResult)
     }
 
-    public static handleEntanglementSelection(room: GameRoom, player: Player, opponent1Id: string, opponent2Id: string) {
-        const effectResult = CardEffectEngine.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
-        GameManager.handleRoomUpdate(room, effectResult);
-    }
-
     public static endGame(room: GameRoom, winner: Player): void {
         if (room.status === GameRoomStatus.FINISHED) {
             return; // Game already ended
@@ -292,13 +296,12 @@ export class GameManager {
 
         room.status = GameRoomStatus.FINISHED;
 
-        Logger.info("GAME_END", `Player ${winner.id} (${winner.name}) won the game in room: ${room.id}`);
+        Logger.info("GAME_END", `Player ${winner.id} won the game in room: ${room.id}`);
 
         room.broadcast({
             type: 'GAME_END',
             winnerId: winner.id,
-            winnerName: winner.name,
-            message: `${winner.name} won the game!`
+            message: `Player ${winner.id.substring(0, 8)}... won the game!`
         });
     }
 
@@ -334,42 +337,18 @@ export class GameManager {
             return;
         }
 
-        // Check if entanglement selection is in progress
-        if (room.entanglementState && room.entanglementState.status === 'AWAITING_SELECTION' 
-            && room.entanglementState.awaitingPlayerId === player.id) {
-            player.sendMessage({
-                type: 'ERROR',
-                message: 'Cannot draw cards while waiting for entanglement selection. Please select 2 opponents to entangle first.'
-            });
-            return;
-        }
-
         if (!room.drawPileManager.getRemainingCardCount()) {
             player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
             return;
         }
 
-        // Draw card for the player
         let cardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;
+        let turnChangeHandled: boolean = false;
         player.getHand().addCard(cardDrawn);
         let cardFaceDrawn: CardFace = CardUtils.getActiveFace(cardDrawn, room.isLightSideActive);
         Logger.info("CARD_DRAWN", `Player: ${player.id} drew a ${cardFaceDrawn.colour} ${cardFaceDrawn.value} card in room: ${room.id}.`);
-
-        // Send the card drawn to the current player
-        player.sendMessage({
-            type: 'CARD_DRAWN',
-            card: cardDrawn,
-            hand: player.getHandCards()
-        });
-
-        // Send the card drawn by the player to the opponents
-        room.broadcast({
-            type: 'OPPONENT_DREW_CARD',
-            card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
-            opponentId: player.id
-        }, [player.id]);
-
-        // If player is entangled, their partner also draws a card (correlated outcomes)
+        
+        // If player is entangled, their partner also draws a card (correlated drawing)
         if (player.isEntangled && player.entanglementPartner) {
             const partner = player.entanglementPartner;
             
@@ -379,41 +358,25 @@ export class GameManager {
                 let partnerCardFaceDrawn: CardFace = CardUtils.getActiveFace(partnerCardDrawn, room.isLightSideActive);
                 
                 Logger.info("CARD_DRAWN", `Entangled Partner: ${partner.id} also drew a ${partnerCardFaceDrawn.colour} ${partnerCardFaceDrawn.value} card (correlated) in room: ${room.id}.`);
-
-                // Send the card drawn to the partner
+                
+                // Send updated hand to partner
                 partner.sendMessage({
                     type: 'CARD_DRAWN',
                     card: partnerCardDrawn,
-                    hand: partner.getHandCards(),
-                    isEntanglementDraw: true
+                    hand: partner.getHandCards()
                 });
-
-                // Send the partner's card drawn to all other players
+                
+                // Broadcast to opponents that partner drew a card
                 room.broadcast({
                     type: 'OPPONENT_DREW_CARD',
                     card: CardUtils.getInactiveFace(partnerCardDrawn, room.isLightSideActive),
-                    opponentId: partner.id,
-                    isEntanglementDraw: true
+                    opponentId: partner.id
                 }, [partner.id]);
-
-                // Notify about correlated draw
-                const playerName = room.playerNames.get(player.id) || player.id.substring(0, 8);
-                const partnerName = room.playerNames.get(partner.id) || partner.id.substring(0, 8);
-                
-                room.broadcast({
-                    type: 'ENTANGLEMENT_NOTIFICATION',
-                    message: `🔗 ${playerName} drew a card - ${partnerName} also drew (entangled outcomes)`,
-                    notificationType: 'correlatedDraw'
-                });
             }
         }
-
-        // Broadcast updated opponent hands to all players after card(s) drawn
-        room.broadcastOpponentHands();
-
-        // If the card drawn can be played (and player is NOT entangled), prompt the user
-        // Entangled players can only play Measurement, so we don't prompt them for other cards
-        if (!player.isEntangled && CardEffectEngine.checkValidMove(cardDrawn, room)) {
+        
+        // If the card drawn can be played, prompt the user instead of auto-playing
+        if (CardEffectEngine.checkValidMove(cardDrawn, room, player)) {
             // Store the drawn card in room state so we can play it later if user chooses
             room.drawnCardAwaitingDecision!.set(player.id, cardDrawn);
             
@@ -424,15 +387,50 @@ export class GameManager {
                 message: 'You drew a playable card! Would you like to play it or keep it?'
             });
             
+            // Still send CARD_DRAWN to update hand, but don't advance turn yet
+            player.sendMessage({
+                type: 'CARD_DRAWN',
+                card: cardDrawn,
+                hand: player.getHandCards()
+            });
+            
+            // Send the card drawn by the player to the opponents
+            room.broadcast({
+                type: 'OPPONENT_DREW_CARD',
+                card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
+                opponentId: player.id
+            }, [player.id]);
+            
+            // Broadcast updated opponent hands
+            room.broadcastOpponentHands();
             return; // Don't advance turn yet - wait for user decision
         }
 
+        // Send the card drawn to the current player along with their updated hand
+        player.sendMessage({
+            type: 'CARD_DRAWN',
+            card: cardDrawn,
+            hand: player.getHandCards()
+        });
+
+        // Send the card drawn by the player to the opponents
+        room.broadcast({
+            type: 'OPPONENT_DREW_CARD',
+            card: CardUtils.getInactiveFace(cardDrawn, room.isLightSideActive),
+            opponentId: player.id // Pass the playerId of the person who drew the card
+        }, [player.id]);
+
+        // Broadcast updated opponent hands to all players after card is drawn
+        room.broadcastOpponentHands();
+
         // Change turn to next player
-        this.advanceTurn(room);
-        // Send the new card on top of draw pile
-        room.broadcastTopOfDrawPile();
-        // Send the new card on top of discard pile
-        room.broadcastTopOfDiscardPile();
+        if (!turnChangeHandled) {
+            this.advanceTurn(room);
+            // Send the new card on top of draw pile
+            room.broadcastTopOfDrawPile();
+            // Send the new card on top of discard pile
+            room.broadcastTopOfDiscardPile();
+        }
     }
 
     public static handleDrawnCardDecision(room: GameRoom, player: Player, decision: 'PLAY' | 'KEEP') {
@@ -458,8 +456,6 @@ export class GameManager {
 
     private static advanceTurn(room: GameRoom): void {
         if (!room.turnManager || room.status === GameRoomStatus.FINISHED) return;
-        
-        // Normal turn advancement - no skipping, entanglement doesn't affect turn order
         const nextPlayer = room.turnManager.advanceTurn();
         room.broadcast({
             type: 'TURN_CHANGED',

@@ -65,6 +65,14 @@ export class Player {
         this.status = PlayerStatus.READY;
     }
 
+    markNotReady() {
+        this.status = PlayerStatus.NOT_READY;
+    }
+
+    isReady(): boolean {
+        return this.status === PlayerStatus.READY;
+    }
+
     // Reset entanglement state
     clearEntanglement() {
         this.isEntangled = false;

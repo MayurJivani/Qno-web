@@ -77,6 +77,13 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				}
 				handlePlayerReady(ws, parsed.roomId, parsed.playerId);
 			},
+			'PLAYER_UNREADY': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				handlePlayerUnready(ws, parsed.roomId, parsed.playerId);
+			},
 			'START_GAME': () => {
 				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
 					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
@@ -257,6 +264,14 @@ const handlePlayerReady = (_ws: WebSocket, roomId: string, playerId: string) => 
 	result.player.markReady();
 	result.room.broadcast({ type: 'PLAYER_READY', playerId });
 	Logger.info("PLAYER_READY", `Player: ${playerId} is ready in room ${roomId}.`);
+};
+
+const handlePlayerUnready = (_ws: WebSocket, roomId: string, playerId: string) => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	result.player.markNotReady();
+	result.room.broadcast({ type: 'PLAYER_UNREADY', playerId });
+	Logger.info("PLAYER_UNREADY", `Player: ${playerId} is no longer ready in room ${roomId}.`);
 };
 
 const handleGameStart = (ws: WebSocket, roomId: string, playerId: string) => {

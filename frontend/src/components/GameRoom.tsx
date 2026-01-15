@@ -223,10 +223,35 @@ const GameRoom: React.FC = () => {
           setPlayerId(message.playerId);
           localStorage.setItem('roomId', message.roomId);
           localStorage.setItem('playerId', message.playerId);
+          
           // Store current player's name from ref
           const currentName = inputPlayerNameRef.current;
           if (currentName && currentName.trim()) {
             setPlayerNames(prev => ({ ...prev, [message.playerId]: currentName.trim() }));
+          }
+          
+          // Handle full player list if provided (includes self and existing players)
+          const joinedData = message as { 
+            players?: Array<{ id: string; name: string; isReady: boolean; isHost: boolean }>;
+            hostId?: string;
+          };
+          
+          if (joinedData.players && Array.isArray(joinedData.players)) {
+            // Set all players
+            setPlayers(joinedData.players.map(p => p.id));
+            // Set player names
+            const names: Record<string, string> = {};
+            joinedData.players.forEach(p => {
+              names[p.id] = p.name;
+            });
+            setPlayerNames(prev => ({ ...prev, ...names }));
+            // Set ready players
+            const readyIds = joinedData.players.filter(p => p.isReady).map(p => p.id);
+            setReadyPlayers(new Set(readyIds));
+            // Set host status
+            if (joinedData.hostId === message.playerId) {
+              setIsHost(true);
+            }
           }
         }
         break;
@@ -246,6 +271,20 @@ const GameRoom: React.FC = () => {
       case 'PLAYER_READY': {
         const id = message.playerId as string;
         setReadyPlayers(prev => new Set(prev).add(id));
+        break;
+      }
+
+      case 'PLAYER_UNREADY': {
+        const id = message.playerId as string;
+        setReadyPlayers(prev => {
+          const updated = new Set(prev);
+          updated.delete(id);
+          return updated;
+        });
+        // If it's the current player, update their ready state
+        if (id === playerIdRef.current) {
+          setReady(false);
+        }
         break;
       }
 
@@ -1066,6 +1105,12 @@ const GameRoom: React.FC = () => {
     setReady(true);
     sendMessage({ type: 'PLAYER_READY', roomId, playerId });
   };
+  
+  const handleUnready = () => {
+    setReady(false);
+    sendMessage({ type: 'PLAYER_UNREADY', roomId, playerId });
+  };
+  
   const handleStartGame = () => sendMessage({ type: 'START_GAME', roomId, playerId });
   const handlePlayCard = (card: Card) => {
     sendMessage({ type: 'PLAY_CARD', roomId, playerId, card });
@@ -1324,31 +1369,104 @@ const GameRoom: React.FC = () => {
               />
             </>
           ) : (
-            <div className="mt-20 space-y-4 flex flex-col items-center relative z-50">
-              {!ready && (
-                <button
-                  className="bg-green-600 hover:bg-green-700 active:bg-green-800 px-6 py-3 rounded-lg font-bold text-lg transition-colors shadow-lg"
-                  onClick={handleReady}
-                >
-                  ✅ Ready
-                </button>
-              )}
-              {ready && (
-                <p className="mt-2 text-yellow-300 font-semibold">
-                  ⏳ Waiting for opponent{players.length > 1 ? 's' : ''}...
-                  <span className="block text-sm text-gray-300 mt-1">
-                    ({readyPlayers.size}/{players.length} ready)
-                  </span>
-                </p>
-              )}
-              {isHost && ready && allReady && (
-                <button
-                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 px-6 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:scale-105"
-                  onClick={handleStartGame}
-                >
-                  🚀 Start Game
-                </button>
-              )}
+            <div className="mt-20 space-y-6 flex flex-col items-center relative z-50 max-w-md mx-auto px-4">
+              {/* Waiting Room Card */}
+              <div className="bg-black/60 backdrop-blur-lg border-2 border-yellow-400 rounded-xl p-6 w-full shadow-[0_0_20px_rgba(250,204,21,0.3)]">
+                <h2 className="text-xl text-yellow-300 font-bold text-center mb-4">🎮 Waiting Room</h2>
+                
+                {/* Ready Status Counter */}
+                <div className="text-center mb-4">
+                  <div className="text-3xl font-bold text-white mb-1">
+                    {readyPlayers.size} / {players.length}
+                  </div>
+                  <div className="text-sm text-gray-400">players ready</div>
+                </div>
+
+                {/* Player List */}
+                <div className="space-y-2 mb-6">
+                  {players.map(id => {
+                    const isPlayerReady = readyPlayers.has(id);
+                    const isYou = id === playerId;
+                    const name = playerNames[id] || id.substring(0, 8);
+                    const isPlayerHost = players.indexOf(id) === 0; // First player is host
+                    return (
+                      <div 
+                        key={id}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                          isPlayerReady ? 'bg-green-600/30 border border-green-500' : 'bg-gray-700/50 border border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{isPlayerReady ? '✅' : '⏳'}</span>
+                          <span className={`font-semibold ${isYou ? 'text-yellow-300' : 'text-white'}`}>
+                            {name} {isYou && '(You)'} {isPlayerHost && '👑'}
+                          </span>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          isPlayerReady ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'
+                        }`}>
+                          {isPlayerReady ? 'READY' : 'NOT READY'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Ready/Unready Toggle Button */}
+                {!ready ? (
+                  <button
+                    className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 px-6 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:scale-[1.02]"
+                    onClick={handleReady}
+                  >
+                    ✅ Ready Up
+                  </button>
+                ) : (
+                  <button
+                    className="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 px-6 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:scale-[1.02]"
+                    onClick={handleUnready}
+                  >
+                    ❌ Cancel Ready
+                  </button>
+                )}
+
+                {/* Status Message */}
+                <div className="mt-4 text-center">
+                  {allReady ? (
+                    isHost ? (
+                      <p className="text-green-300 font-semibold animate-pulse">
+                        ✨ All players ready! You can start the game.
+                      </p>
+                    ) : (
+                      <p className="text-yellow-300 font-semibold">
+                        ⏳ Waiting for host to start the game...
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-gray-400 text-sm">
+                      {players.length < 2 
+                        ? 'Waiting for more players to join...' 
+                        : `Waiting for ${players.filter(id => !readyPlayers.has(id)).length} player(s) to ready up...`
+                      }
+                    </p>
+                  )}
+                </div>
+
+                {/* Start Game Button (Host Only) */}
+                {isHost && allReady && players.length >= 2 && (
+                  <button
+                    className="w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-6 py-4 rounded-lg font-bold text-xl transition-all shadow-lg hover:scale-[1.02] animate-pulse"
+                    onClick={handleStartGame}
+                  >
+                    🚀 Start Game
+                  </button>
+                )}
+              </div>
+
+              {/* Room Info */}
+              <div className="text-center text-gray-400 text-xs">
+                <p>Room ID: {roomId?.substring(0, 8)}...</p>
+                <p className="mt-1">Share this ID with friends to join!</p>
+              </div>
             </div>
           )}
         </>

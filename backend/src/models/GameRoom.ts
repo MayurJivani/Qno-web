@@ -63,7 +63,25 @@ export class GameRoom {
             this.players.set(player.id, player);
             this.playerNames.set(player.id, player.name);
             playerMap.set(player.socket, { roomId: this.id, playerId: player.id });
-            player.sendMessage({ type: 'JOINED_ROOM', roomId: this.id, playerId: player.id });
+            
+            // Build list of existing players with their ready states
+            const existingPlayers = Array.from(this.players.entries()).map(([id, p]) => ({
+                id,
+                name: p.name,
+                isReady: p.isReady(),
+                isHost: this.host.id === id
+            }));
+            
+            // Send JOINED_ROOM with full player list to the new player
+            player.sendMessage({ 
+                type: 'JOINED_ROOM', 
+                roomId: this.id, 
+                playerId: player.id,
+                players: existingPlayers,
+                hostId: this.host.id
+            });
+            
+            // Notify other players about the new player
             this.broadcast({ type: "NEW_PLAYER_JOINED", roomId: this.id, playerId: player.id, playerName: player.name }, [player.id]);
         } else {
             player.sendMessage({ type: 'ERROR', message: 'Room is full or not joinable' });

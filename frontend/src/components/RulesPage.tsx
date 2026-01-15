@@ -171,8 +171,8 @@ export default function RulesPage() {
                 <h3 className="text-yellow-300 mb-2">Drawing Cards</h3>
                 <p>
                   If you can't play a card, you must draw one card from the draw pile. 
-                  If the drawn card can be played, it is played immediately. Otherwise, 
-                  your turn ends.
+                  If the drawn card can be played, you'll be prompted to either <strong>play it</strong> or <strong>keep it</strong> in your hand. 
+                  If you keep it (or it can't be played), your turn ends.
                 </p>
               </div>
               <div className="mt-4">
@@ -295,18 +295,25 @@ export default function RulesPage() {
               <div className="bg-black/50 p-4 rounded border border-gray-500">
                 <h3 className="text-white font-bold mb-2">Measurement</h3>
                 <p>
-                  <strong>After Superposition:</strong> Collapses the superposition by revealing a new non-action card from the draw pile, which becomes the new card to match.
+                  <strong className="text-purple-300">On Superposition:</strong> Collapses with a <strong>50/50 quantum outcome</strong>:
+                  <br />
+                  • 50% chance: The original card (before Superposition) returns with its <strong>Light side</strong> active
+                  <br />
+                  • 50% chance: The <strong>Dark side</strong> of the original card returns AND <strong>all cards flip</strong> (like Pauli X)
                   <br /><br />
-                  <strong>After Entanglement:</strong> Resolves entanglement with random outcome (one player draws 3, other draws 0).
+                  <strong className="text-pink-300">On Entanglement:</strong> Resolves entanglement with <strong>50/50 random outcome</strong> - one entangled player draws 3 cards, the other draws 0.
                   <br /><br />
-                  <strong>After normal cards:</strong> Reveals the card below it on the discard pile or draws a new non-action card if none exists.
+                  <strong className="text-cyan-300">On normal cards:</strong> Reveals the card below it on the discard pile.
                 </p>
               </div>
               <div className="bg-black/50 p-4 rounded border border-gray-500">
                 <h3 className="text-white font-bold mb-2">Superposition</h3>
                 <p>
-                  Creates uncertainty! This card blocks the discard pile until someone plays a Measurement card. 
-                  Only Measurement can be played while Superposition is on top.
+                  Creates quantum uncertainty! When played, the current discard pile top is saved. 
+                  While Superposition is active, only <strong>Measurement</strong> or another <strong>Superposition</strong> card can be played.
+                  If you can't play either, you must draw cards until you can.
+                  <br /><br />
+                  <span className="text-yellow-300">Playing Superposition on Superposition:</span> Returns the original saved card to the top, then starts a new Superposition state.
                 </p>
               </div>
               <div className="bg-black/50 p-4 rounded border border-gray-500">
@@ -317,13 +324,25 @@ export default function RulesPage() {
                 </p>
               </div>
               <div className="bg-black/50 p-4 rounded border border-gray-500">
-                <h3 className="text-white font-bold mb-2">Entanglement (Light Side Only)</h3>
+                <h3 className="text-white font-bold mb-2">Entanglement</h3>
                 <p>
-                  <strong>2-Player Games:</strong> The player playing Entanglement becomes entangled with their opponent. On each entangled player's turn, they MUST play a Measurement card if they have one, or draw 1 card and skip their turn. When the first Measurement is played, one entangled player draws 3 cards and the other draws 0 (random 50/50 outcome). Both players are then freed from entanglement.
+                  <strong className="text-pink-300">Separate Pile:</strong> When played, the Entanglement card goes to a <strong>separate pile</strong> next to the discard pile (not on top of it). This allows non-entangled players to continue playing normally!
                   <br /><br />
-                  <strong>3-4 Player Games:</strong> Select 2 opponents to entangle! On each entangled player's turn, they MUST play a Measurement card if they have one, or draw 1 card and skip their turn. When the first Measurement is played, one entangled player draws 3 cards and the other draws 0 (random 50/50 outcome). Entanglement then collapses and normal play resumes.
+                  <strong className="text-purple-300">2-Player Games:</strong> You become entangled with your opponent automatically.
                   <br /><br />
-                  <span className="text-yellow-300">⚠️ Use carefully! This card can disrupt the game flow significantly. Players only draw cards when it's their turn (if they don't have Measurement).</span>
+                  <strong className="text-purple-300">3-4 Player Games:</strong> Select 2 opponents to entangle them together!
+                  <br /><br />
+                  <strong className="text-cyan-300">Entangled Player Rules:</strong>
+                  <br />
+                  • Can <strong>ONLY</strong> play Measurement cards (no other cards allowed)
+                  <br />
+                  • If one entangled player draws a card, their partner <strong>automatically draws too</strong> (correlated drawing)
+                  <br /><br />
+                  <strong className="text-green-300">Non-Entangled Players:</strong> Continue playing normally on the main discard pile while entanglement is active.
+                  <br /><br />
+                  <strong className="text-yellow-300">Resolution:</strong> When an entangled player plays Measurement, 50/50 outcome - one draws 3 cards, other draws 0. Both Entanglement and Measurement cards slide into the middle of the discard pile.
+                  <br /><br />
+                  <span className="text-red-300">⚠️ Only one entanglement can be active at a time!</span>
                 </p>
               </div>
             </div>
@@ -345,8 +364,9 @@ export default function RulesPage() {
                 <li>Each player receives 7 cards</li>
                 <li>Turns proceed clockwise (or anti-clockwise if reversed)</li>
                 <li>On your turn: play a matching card OR draw a card</li>
-                <li>If you draw a playable card, it plays automatically</li>
+                <li>If you draw a playable card, choose to <strong>play</strong> or <strong>keep</strong> it</li>
                 <li>Action cards trigger their effects immediately</li>
+                <li>After any effect resolution, action cards cannot stay on top of the discard pile</li>
                 <li>First player to empty their hand wins! 🏆</li>
               </ol>
             </div>
@@ -371,9 +391,9 @@ export default function RulesPage() {
               <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">Superposition Lock</h3>
                 <p>
-                  When Superposition is on the discard pile, only Measurement cards can be played. 
-                  This creates a special situation where players must either have a Measurement card 
-                  or draw until they get one.
+                  When Superposition is on the discard pile, only <strong>Measurement</strong> or <strong>Superposition</strong> cards can be played. 
+                  Players must draw cards until they get one of these. The original card (before Superposition) 
+                  is saved and will return when collapsed - but with a 50/50 chance of flipping to its dark side!
                 </p>
               </div>
               <div className="mt-4">
@@ -385,15 +405,25 @@ export default function RulesPage() {
                 </p>
               </div>
               <div className="mt-4">
+                <h3 className="text-yellow-300 mb-2">No Action Card on Top</h3>
+                <p>
+                  After any effect resolution (Measurement, Decoherence) or side flip (Pauli X/Y), 
+                  an action card cannot remain on top of the discard pile. If one ends up there, 
+                  it's automatically replaced with a non-action card from the pile or draw deck.
+                </p>
+              </div>
+              <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">Entanglement Resolution</h3>
                 <p>
                   When Entanglement is active:
                   <br /><br />
-                  <strong>Entangled Players:</strong> Cannot play normal cards - they MUST either play a Measurement card (if they have one) or draw 1 card and skip their turn. This continues until one entangled player plays Measurement.
+                  <strong className="text-purple-300">Entangled Players:</strong> Can <strong>ONLY</strong> play Measurement cards - no other cards are allowed! If they draw a card, their entangled partner automatically draws one too (quantum correlation).
                   <br /><br />
-                  <strong>Non-Entangled Players:</strong> Their turns are automatically skipped - only entangled players can take actions during entanglement.
+                  <strong className="text-green-300">Non-Entangled Players:</strong> Continue playing normally on the main discard pile. The game doesn't stop for them!
                   <br /><br />
-                  <strong>Collapse:</strong> When the first Measurement card is played by an entangled player, entanglement collapses with a random 50/50 outcome: one entangled player draws 3 cards, the other draws 0 cards. Both players are then freed from entanglement and normal play resumes for all players.
+                  <strong className="text-cyan-300">Collapse:</strong> When an entangled player plays Measurement, the entanglement collapses with a <strong>50/50 random outcome</strong>: one entangled player draws 3 cards, the other draws 0. Both the Entanglement and Measurement cards slide into the middle of the discard pile.
+                  <br /><br />
+                  <strong className="text-red-300">Important:</strong> Only one entanglement can be active at a time - if players are already entangled, you cannot play another Entanglement card!
                 </p>
               </div>
             </div>
@@ -431,19 +461,27 @@ export default function RulesPage() {
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-300 mr-2">💡</span>
-                  <span>Keep Measurement cards handy when Superposition is played</span>
+                  <span>Keep Measurement cards handy - they resolve both Superposition AND Entanglement</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-300 mr-2">💡</span>
-                  <span>Entanglement can trap opponents - but be strategic about timing!</span>
+                  <span>Superposition has 50/50 risk - the collapse might flip ALL cards!</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-300 mr-2">💡</span>
-                  <span>Hold Measurement cards when Entanglement or Superposition cards are common</span>
+                  <span>When entangled, drawing cards means your partner draws too - use this strategically!</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-300 mr-2">💡</span>
+                  <span>Non-entangled players can keep playing - entanglement doesn't stop the game for everyone</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-300 mr-2">💡</span>
                   <span>Entangle players who have fewer cards - they're less likely to have Measurement</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-300 mr-2">💡</span>
+                  <span>When you draw a playable card, sometimes keeping it is better than playing immediately!</span>
                 </li>
               </ul>
             </div>

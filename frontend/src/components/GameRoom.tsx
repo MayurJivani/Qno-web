@@ -9,6 +9,7 @@ import EffectNotifications from './EffectNotifications';
 import PlayableCardModal from './PlayableCardModal';
 import GameBoard from './GameBoard';
 import EntanglementSelectionModal from './EntanglementSelectionModal';
+import WebSocketLogWindow, { WSLogEntry } from './WebSocketLogWindow';
 
 interface WSMessage {
   type: string;
@@ -54,6 +55,43 @@ const GameRoom: React.FC = () => {
   const [disconnectedPlayers, setDisconnectedPlayers] = useState<Set<string>>(new Set());
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [victoryScreen, setVictoryScreen] = useState<{ show: boolean; isWinner: boolean; message: string } | null>(null);
+  const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
+
+  // WebSocket logger callback - only log important game events
+  const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
+    // Only log specific message types that are important for gameplay
+    const loggableTypes = [
+      'PLAYED_CARD',
+      'OPPONENT_PLAYED_CARD',
+      'CARD_EFFECT',
+      'TURN_CHANGED',
+      'ENTANGLEMENT_NOTIFICATION',
+      'ENTANGLEMENT_COLLAPSED',
+      'AWAITING_ENTANGLEMENT_SELECTION',
+      'AWAITING_TELEPORTATION_TARGET',
+      'TELEPORTATION_SELECT',
+      'DRAW_CARD',
+      'CARD_DRAWN',
+      'DRAWN_CARD_DECISION'
+    ];
+    
+    if (!loggableTypes.includes(type)) {
+      return; // Skip non-important messages
+    }
+    
+    const newLog: WSLogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      direction,
+      type,
+      data
+    };
+    setWsLogs(prev => {
+      // Keep only last 100 logs to prevent memory issues
+      const updated = [...prev, newLog];
+      return updated.slice(-100);
+    });
+  }, []);
 
   // Use refs for values used in callbacks to avoid dependency issues
   const isLightSideActiveRef = useRef(isLightSideActive);
@@ -373,9 +411,9 @@ const GameRoom: React.FC = () => {
         localStorage.removeItem('playerId');
         localStorage.removeItem('sessionToken');
         
-        // Show victory screen
-        const isWinner = gameEndData.winnerId === currentPlayerId;
-        const winnerName = gameEndData.winnerName || 'Unknown Player';
+        // Show victory screen - use playerIdRef (logged-in player), not currentPlayerId (whose turn)
+        const isWinner = gameEndData.winnerId === playerIdRef.current;
+        const winnerName = gameEndData.winnerName || playerNames[gameEndData.winnerId || ''] || 'Unknown Player';
         setVictoryScreen({
           show: true,
           isWinner,
@@ -833,7 +871,7 @@ const GameRoom: React.FC = () => {
           reason?: string;
         };
         setGameStarted(false);
-        const winnerName = gameOverData.winnerName || gameOverData.winnerId?.substring(0, 8) || 'Unknown';
+        const winnerName = gameOverData.winnerName || playerNames[gameOverData.winnerId || ''] || gameOverData.winnerId?.substring(0, 8) || 'Unknown';
         if (gameOverData.winnerId === playerIdRef.current) {
           queueNotification('🎉 You Won! 🎉', 'victory', 5000);
         } else {
@@ -921,7 +959,7 @@ const GameRoom: React.FC = () => {
     }
   }, []); // No dependencies needed - using refs for dynamic values
 
-  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage);
+  const { connect, disconnect, sendMessage } = useGameSocket(handleSocketMessage, wsLogger);
 
   const handleCreateRoom = useCallback(() => {
     if (!inputPlayerName.trim()) {
@@ -1184,6 +1222,14 @@ const GameRoom: React.FC = () => {
               >
                 Room: {roomId?.substring(0, 8)}...
               </button>
+              <a
+                href="/rules"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold transition-all shadow-lg text-sm"
+              >
+                📖 Rules
+              </a>
               <button
                 className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold transition-all shadow-lg text-sm"
                 onClick={handleLeaveRoom}
@@ -1271,6 +1317,11 @@ const GameRoom: React.FC = () => {
                   }}
                 />
               )}
+              {/* WebSocket Log Window */}
+              <WebSocketLogWindow 
+                logs={wsLogs} 
+                onClear={() => setWsLogs([])} 
+              />
             </>
           ) : (
             <div className="mt-20 space-y-4 flex flex-col items-center relative z-50">

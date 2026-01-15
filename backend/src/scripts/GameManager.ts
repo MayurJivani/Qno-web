@@ -296,12 +296,14 @@ export class GameManager {
 
         room.status = GameRoomStatus.FINISHED;
 
-        Logger.info("GAME_END", `Player ${winner.id} won the game in room: ${room.id}`);
+        const winnerName = room.playerNames.get(winner.id) || winner.id.substring(0, 8);
+        Logger.info("GAME_END", `Player ${winnerName} (${winner.id}) won the game in room: ${room.id}`);
 
         room.broadcast({
             type: 'GAME_END',
             winnerId: winner.id,
-            message: `Player ${winner.id.substring(0, 8)}... won the game!`
+            winnerName: winnerName,
+            message: `${winnerName} won the game!`
         });
     }
 
@@ -376,7 +378,12 @@ export class GameManager {
         }
         
         // If the card drawn can be played, prompt the user instead of auto-playing
-        if (CardEffectEngine.checkValidMove(cardDrawn, room, player)) {
+        // BUT: If it's an Entanglement card and there's already an active entanglement, don't prompt
+        const isEntanglementCard = cardFaceDrawn.value === ActionCards.WildCard.Entanglement;
+        const canActuallyPlay = CardEffectEngine.checkValidMove(cardDrawn, room, player) && 
+                               !(isEntanglementCard && room.hasActiveEntanglement());
+        
+        if (canActuallyPlay) {
             // Store the drawn card in room state so we can play it later if user chooses
             room.drawnCardAwaitingDecision!.set(player.id, cardDrawn);
             

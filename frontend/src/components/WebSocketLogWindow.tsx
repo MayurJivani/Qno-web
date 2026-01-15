@@ -30,12 +30,11 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
       hour12: false, 
       hour: '2-digit', 
       minute: '2-digit', 
-      second: '2-digit',
-      fractionalSecondDigits: 3
-    });
+      second: '2-digit'
+    } as Intl.DateTimeFormatOptions);
   };
 
-  const formatMessage = (type: string, data: unknown): string => {
+  const formatMessage = (type: string, data: unknown): string | null => {
     try {
       const dataObj = data as Record<string, unknown>;
       
@@ -45,7 +44,6 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
           // These messages contain the active card face that was played
           const cardFace = dataObj.card as { colour?: string; value?: string };
           if (cardFace?.colour && cardFace?.value) {
-            const playerId = dataObj.playerId as string || dataObj.opponentId as string;
             const playerPrefix = type === 'OPPONENT_PLAYED_CARD' ? 'Opponent' : 'You';
             return `${playerPrefix} played: ${cardFace.colour} ${cardFace.value}`;
           }
@@ -116,6 +114,14 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
         }
         
         case 'DRAW_CARD': {
+          return '🎴 Drawing card...';
+        }
+        
+        case 'CARD_DRAWN': {
+          const cardFace = dataObj.card as { lightSide?: { colour?: string; value?: string }; darkSide?: { colour?: string; value?: string } };
+          if (cardFace?.lightSide?.colour && cardFace?.lightSide?.value) {
+            return `🎴 Drew: ${cardFace.lightSide.colour} ${cardFace.lightSide.value}`;
+          }
           return '🎴 Card drawn';
         }
         
@@ -125,10 +131,10 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
         }
         
         default:
-          return String(data).substring(0, 150);
+          return null; // Don't show unrecognized types
       }
     } catch {
-      return String(data).substring(0, 150);
+      return null;
     }
   };
 
@@ -175,34 +181,38 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
                 No game events yet...
               </div>
             ) : (
-              logs.map((log) => (
-                <div
-                  key={log.id}
-                  className={`p-2 rounded border-l-4 ${
-                    log.direction === 'sent' 
-                      ? 'bg-blue-500/10 border-blue-400' 
-                      : 'bg-green-500/10 border-green-400'
-                  } text-[8px]`}
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-bold ${
-                        log.direction === 'sent' ? 'text-blue-400' : 'text-green-400'
-                      }`}>
-                        {log.direction === 'sent' ? '→' : '←'}
-                      </span>
-                      <span className="text-cyan-300 uppercase">{log.type}</span>
+              logs.map((log) => {
+                const message = formatMessage(log.type, log.data);
+                if (!message) return null; // Skip logs without formatted messages
+                return (
+                  <div
+                    key={log.id}
+                    className={`p-2 rounded border-l-4 ${
+                      log.direction === 'sent' 
+                        ? 'bg-blue-500/10 border-blue-400' 
+                        : 'bg-green-500/10 border-green-400'
+                    } text-[8px]`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold ${
+                          log.direction === 'sent' ? 'text-blue-400' : 'text-green-400'
+                        }`}>
+                          {log.direction === 'sent' ? '→' : '←'}
+                        </span>
+                        <span className="text-cyan-300 uppercase">{log.type}</span>
+                      </div>
+                      <span className="text-gray-400 text-[7px]">{formatTimestamp(log.timestamp)}</span>
                     </div>
-                    <span className="text-gray-400 text-[7px]">{formatTimestamp(log.timestamp)}</span>
-                  </div>
 
-                  {/* Formatted Message */}
-                  <div className="text-gray-200 text-[7px] bg-black/30 p-1.5 rounded mt-1 leading-relaxed">
-                    {formatMessage(log.type, log.data)}
+                    {/* Formatted Message */}
+                    <div className="text-gray-200 text-[7px] bg-black/30 p-1.5 rounded mt-1 leading-relaxed">
+                      {message}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

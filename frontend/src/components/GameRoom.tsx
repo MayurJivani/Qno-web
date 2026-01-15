@@ -56,6 +56,7 @@ const GameRoom: React.FC = () => {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [victoryScreen, setVictoryScreen] = useState<{ show: boolean; isWinner: boolean; message: string } | null>(null);
   const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
+  const [showLogsEnabled, setShowLogsEnabled] = useState(false);
 
   // WebSocket logger callback - only log important game events
   const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
@@ -1362,11 +1363,13 @@ const GameRoom: React.FC = () => {
                   }}
                 />
               )}
-              {/* WebSocket Log Window */}
-              <WebSocketLogWindow 
-                logs={wsLogs} 
-                onClear={() => setWsLogs([])} 
-              />
+              {/* WebSocket Log Window - only show if enabled in waiting room */}
+              {showLogsEnabled && (
+                <WebSocketLogWindow 
+                  logs={wsLogs} 
+                  onClear={() => setWsLogs([])} 
+                />
+              )}
             </>
           ) : (
             <div className="mt-20 space-y-6 flex flex-col items-center relative z-50 max-w-md mx-auto px-4">
@@ -1449,6 +1452,47 @@ const GameRoom: React.FC = () => {
                       }
                     </p>
                   )}
+                </div>
+
+                {/* Debug Logs Toggle - Retro Slider */}
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <label className="flex items-center justify-center gap-3 cursor-pointer group">
+                    <span className={`text-xs transition-colors ${showLogsEnabled ? 'text-gray-500' : 'text-cyan-400'}`}>
+                      OFF
+                    </span>
+                    <div 
+                      onClick={() => setShowLogsEnabled(!showLogsEnabled)}
+                      className={`relative w-14 h-7 rounded-full transition-all duration-300 border-2 ${
+                        showLogsEnabled 
+                          ? 'bg-cyan-900/60 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.4)]' 
+                          : 'bg-gray-800 border-gray-600'
+                      }`}
+                    >
+                      {/* Track glow effect */}
+                      <div className={`absolute inset-0 rounded-full transition-opacity duration-300 ${
+                        showLogsEnabled ? 'opacity-100' : 'opacity-0'
+                      }`} style={{
+                        background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.2), transparent)'
+                      }} />
+                      {/* Slider knob */}
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${
+                        showLogsEnabled 
+                          ? 'left-7 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' 
+                          : 'left-0.5 bg-gray-500'
+                      }`}>
+                        {/* Knob inner detail */}
+                        <div className={`absolute inset-1 rounded-full ${
+                          showLogsEnabled ? 'bg-cyan-300' : 'bg-gray-400'
+                        }`} />
+                      </div>
+                    </div>
+                    <span className={`text-xs transition-colors ${showLogsEnabled ? 'text-cyan-400' : 'text-gray-500'}`}>
+                      ON
+                    </span>
+                    <span className="text-gray-400 text-xs ml-2">
+                      📡 Event Logs
+                    </span>
+                  </label>
                 </div>
 
                 {/* Start Game Button (Host Only) */}

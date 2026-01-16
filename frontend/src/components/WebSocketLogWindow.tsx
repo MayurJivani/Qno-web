@@ -39,55 +39,33 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
       const dataObj = data as Record<string, unknown>;
       
       switch (type) {
-        case 'PLAYED_CARD':
-        case 'OPPONENT_PLAYED_CARD': {
-          // These messages contain the active card face that was played
-          const cardFace = dataObj.card as { colour?: string; value?: string };
-          if (cardFace?.colour && cardFace?.value) {
-            const playerPrefix = type === 'OPPONENT_PLAYED_CARD' ? 'Opponent' : 'You';
-            return `${playerPrefix} played: ${cardFace.colour} ${cardFace.value}`;
-          }
-          return 'Card played';
-        }
-        
         case 'CARD_EFFECT': {
           const effect = dataObj.effect as string;
           
           if (effect === 'Teleportation') {
-            const teleportation = dataObj.teleportation as { cardTeleportedFromPlayerId?: string; cardTeleportedToPlayerId?: string; cardTeleported?: number };
-            if (teleportation?.cardTeleported) {
-              return `📡 Teleportation: Card ${teleportation.cardTeleported} moved`;
-            }
-            return '📡 Teleportation activated';
+            return '📡 Teleportation: Card stolen!';
           } else if (effect === 'Pauli_X') {
             const isLight = dataObj.isLightSideActive as boolean;
-            return `⚛️ Pauli X: Side flipped to ${isLight ? 'Light' : 'Dark'}`;
+            return `⚛️ Pauli X: Flipped to ${isLight ? 'Light' : 'Dark'} side`;
           } else if (effect === 'Pauli_Y') {
             const isLight = dataObj.isLightSideActive as boolean;
             const direction = dataObj.direction as number;
-            const dir = direction === 1 ? 'CW' : 'CCW';
-            return `⚛️ Pauli Y: Side ${isLight ? 'Light' : 'Dark'}, Direction ${dir}`;
+            const dir = direction === 1 ? '→' : '←';
+            return `⚛️ Pauli Y: ${isLight ? 'Light' : 'Dark'} side, ${dir}`;
           } else if (effect === 'Pauli_Z') {
             const direction = dataObj.direction as number;
-            const dir = direction === 1 ? 'CW' : 'CCW';
-            return `⚛️ Pauli Z: Direction reversed to ${dir}`;
+            const dir = direction === 1 ? '→ Clockwise' : '← Counter-clockwise';
+            return `⚛️ Pauli Z: ${dir}`;
           } else if (effect === 'Superposition') {
-            return '🔮 Superposition: New card revealed';
+            return '🔮 Superposition activated!';
           } else if (effect === 'Measurement') {
-            return '📊 Measurement: Collapse resolved';
+            return '📊 Measurement: Collapsed!';
           } else if (effect === 'Entanglement') {
-            return '🔗 Entanglement: Players entangled';
+            return '🔗 Entanglement: Players linked!';
           } else if (effect === 'Decoherence') {
-            return '🌈 Decoherence: New card revealed';
+            return '🌈 Decoherence: Color changed!';
           }
-          return `Effect: ${effect}`;
-        }
-        
-        case 'TURN_CHANGED': {
-          const currentPlayer = dataObj.currentPlayer as string;
-          const direction = dataObj.direction as number;
-          const dir = direction === 1 ? 'CW' : 'CCW';
-          return `Turn: ${currentPlayer.substring(0, 8)}... (${dir})`;
+          return null; // Skip unknown effects
         }
         
         case 'ENTANGLEMENT_NOTIFICATION': {
@@ -98,36 +76,12 @@ const WebSocketLogWindow: React.FC<WebSocketLogWindowProps> = ({ logs, onClear }
         case 'ENTANGLEMENT_COLLAPSED': {
           const playerWhoDrew3Name = dataObj.playerWhoDrew3Name as string;
           const playerWhoDrew0Name = dataObj.playerWhoDrew0Name as string;
-          return `💥 Collapsed: ${playerWhoDrew3Name} +3 cards, ${playerWhoDrew0Name} +0 cards`;
+          return `💥 Collapsed! ${playerWhoDrew3Name} +3, ${playerWhoDrew0Name} +0`;
         }
         
-        case 'AWAITING_ENTANGLEMENT_SELECTION': {
-          return '⏳ Waiting for entanglement selection...';
-        }
-        
-        case 'AWAITING_TELEPORTATION_TARGET': {
-          return '⏳ Waiting for teleportation target...';
-        }
-        
-        case 'TELEPORTATION_SELECT': {
-          return '✅ Teleportation completed';
-        }
-        
-        case 'DRAW_CARD': {
-          return '🎴 Drawing card...';
-        }
-        
-        case 'CARD_DRAWN': {
-          const cardFace = dataObj.card as { lightSide?: { colour?: string; value?: string }; darkSide?: { colour?: string; value?: string } };
-          if (cardFace?.lightSide?.colour && cardFace?.lightSide?.value) {
-            return `🎴 Drew: ${cardFace.lightSide.colour} ${cardFace.lightSide.value}`;
-          }
-          return '🎴 Card drawn';
-        }
-        
-        case 'DRAWN_CARD_DECISION': {
-          const decision = dataObj.decision as string;
-          return `Decision: ${decision}`;
+        case 'DECK_RESHUFFLED': {
+          const cardsReshuffled = dataObj.cardsReshuffled as number;
+          return `🔄 Deck reshuffled (${cardsReshuffled || '?'} cards)`;
         }
         
         default:

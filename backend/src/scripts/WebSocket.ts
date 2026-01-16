@@ -429,7 +429,7 @@ const handleTeleportationSelection = (_ws: WebSocket, roomId: string, playerId: 
 		return;
 	}
 	
-	CardEffectEngine.handleTeleportationSelection(room, player, fromPlayerId, actualCard)
+	GameManager.handleTeleportation(room, player, fromPlayerId, actualCard)
 }
 
 const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: string, opponent1Id: string, opponent2Id: string) => {

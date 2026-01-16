@@ -58,22 +58,14 @@ const GameRoom: React.FC = () => {
   const [wsLogs, setWsLogs] = useState<WSLogEntry[]>([]);
   const [showLogsEnabled, setShowLogsEnabled] = useState(false);
 
-  // WebSocket logger callback - only log important game events
+  // WebSocket logger callback - only log wild card actions and important events
   const wsLogger = useCallback((direction: 'sent' | 'received', type: string, data: unknown) => {
-    // Only log specific message types that are important for gameplay
+    // Only log wild card effects and important game events
     const loggableTypes = [
-      'PLAYED_CARD',
-      'OPPONENT_PLAYED_CARD',
       'CARD_EFFECT',
-      'TURN_CHANGED',
       'ENTANGLEMENT_NOTIFICATION',
       'ENTANGLEMENT_COLLAPSED',
-      'AWAITING_ENTANGLEMENT_SELECTION',
-      'AWAITING_TELEPORTATION_TARGET',
-      'TELEPORTATION_SELECT',
-      'DRAW_CARD',
-      'CARD_DRAWN',
-      'DRAWN_CARD_DECISION'
+      'DECK_RESHUFFLED'
     ];
     
     if (!loggableTypes.includes(type)) {
@@ -378,7 +370,16 @@ const GameRoom: React.FC = () => {
           });
         }
 
-        setOpponentDecks(parsed); // now it's Record<string, Card[]>
+        // Merge with existing opponent decks to avoid race conditions
+        // This prevents hands from disappearing when multiple updates arrive quickly
+        setOpponentDecks(prev => {
+          const updated = { ...prev };
+          // Update each opponent's deck from the parsed data
+          for (const [id, cards] of Object.entries(parsed)) {
+            updated[id] = cards;
+          }
+          return updated;
+        });
         break;
       }
 
@@ -413,6 +414,13 @@ const GameRoom: React.FC = () => {
         // The backend will send OPPONENT_HAND to update the full hand state
         // We can still use this for any immediate UI feedback if needed
         // But the OPPONENT_HAND handler will ensure the correct state
+        break;
+      }
+
+      case 'DECK_RESHUFFLED': {
+        // Draw pile was replenished from discard pile
+        const reshuffleData = message as { message?: string; cardsReshuffled?: number };
+        queueNotification(reshuffleData.message || 'Deck reshuffled!', 'info');
         break;
       }
 
@@ -749,7 +757,10 @@ const GameRoom: React.FC = () => {
               return new Card(cardId, lightSide, darkSide);
             });
           }
-          setOpponentDecks(parsed);
+          // Merge with existing opponent decks instead of replacing entirely
+          // This preserves opponents not included in the update (e.g., during teleportation, 
+          // opponents with only 1 card are excluded but should still be visible)
+          setOpponentDecks(prev => ({ ...prev, ...parsed }));
         }
         break;
       }
@@ -1508,8 +1519,8 @@ const GameRoom: React.FC = () => {
 
               {/* Room Info */}
               <div className="text-center text-gray-400 text-xs">
-                <p>Room ID: {roomId?.substring(0, 8)}...</p>
-                <p className="mt-1">Share this ID with friends to join!</p>
+                <p>Click Room ID to Copy</p>
+                <p className="mt-1">Share it with friends to join!</p>
               </div>
             </div>
           )}

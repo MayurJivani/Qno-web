@@ -339,9 +339,27 @@ export class GameManager {
             return;
         }
 
+        // Check if draw pile is empty and try to replenish from discard pile
         if (!room.drawPileManager.getRemainingCardCount()) {
-            player.sendMessage({ type: 'ERROR', message: 'No cards left in the deck' });
-            return;
+            const cardsToReshuffle = room.discardPileManager.extractCardsForReshuffle(room.isLightSideActive);
+            
+            if (cardsToReshuffle.length > 0) {
+                // Add cards to draw pile and shuffle
+                room.drawPileManager.addCardsAndShuffle(cardsToReshuffle);
+                Logger.info("DRAW_PILE_REPLENISHED", `Draw pile replenished with ${cardsToReshuffle.length} cards from discard pile in room: ${room.id}`);
+                
+                // Notify all players that deck was reshuffled
+                room.broadcast({
+                    type: 'DECK_RESHUFFLED',
+                    message: 'Draw pile was empty! Cards from discard pile have been shuffled back.',
+                    cardsReshuffled: cardsToReshuffle.length
+                });
+                
+                room.broadcastTopOfDrawPile();
+            } else {
+                player.sendMessage({ type: 'ERROR', message: 'No cards left to draw - deck is empty!' });
+                return;
+            }
         }
 
         let cardDrawn: Card = room.drawPileManager.drawCardFromTop(room.isLightSideActive)!;

@@ -1,4 +1,4 @@
-export interface Colors<T extends string> {
+export type Colors<T extends string> = {
     [K in T]: string;
   }
   

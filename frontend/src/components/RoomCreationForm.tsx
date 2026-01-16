@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface RoomCreationFormProps {
   inputPlayerName: string;
@@ -23,6 +24,7 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
   onJoinRoom,
   onReconnect,
 }) => {
+  const navigate = useNavigate();
   const [hasStoredSession, setHasStoredSession] = useState(false);
 
   useEffect(() => {
@@ -43,6 +45,15 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
   return (
     <div className="flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-purple-900/90 via-indigo-900/90 to-pink-900/90 rounded-xl border-2 border-yellow-400 shadow-2xl relative z-50 max-w-md mx-auto mt-20 backdrop-blur-sm" 
          style={{ fontFamily: "'Press Start 2P', cursive" }}>
+      {/* Back Button */}
+      <button
+        onClick={() => navigate('/')}
+        className="absolute top-4 left-4 text-yellow-300 hover:text-white text-xs flex items-center gap-1 transition-colors"
+        style={{ fontFamily: "'Press Start 2P', cursive" }}
+      >
+        <span>←</span>
+        <span>HOME</span>
+      </button>
       <h2 className="text-2xl sm:text-3xl font-bold text-yellow-300 mb-4 drop-shadow-lg">🎴 QNO</h2>
       {connectionError && (
         <div className="bg-red-600 text-white px-4 py-2 rounded mb-2 w-full text-center text-xs">

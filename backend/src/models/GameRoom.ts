@@ -119,6 +119,46 @@ export class GameRoom {
         }
     }
 
+    // Reset the game room for a new game (flushes all game state while keeping players)
+    public resetForNewGame(): void {
+        Logger.info("GAME_RESET", `Resetting game state for room: ${this.id}`);
+
+        // Reset draw pile with fresh deck
+        this.drawPileManager.reset();
+
+        // Clear discard pile
+        this.discardPileManager.reset();
+
+        // Clear all player hands and reset their status
+        this.players.forEach(player => {
+            player.getHand().setCards([]);
+            player.markNotReady();
+            player.isEntangled = false;
+            player.entanglementPartner = null;
+            player.entanglementInitiator = null;
+        });
+
+        // Reset game state
+        this.isLightSideActive = true;
+        this.status = GameRoomStatus.NOT_STARTED;
+        this.turnManager = undefined;
+        this.teleportationState = null;
+        this.drawnCardAwaitingDecision = new Map();
+        this.entanglementState = null;
+        this.entanglementPile = [];
+        this.cardBeforeEntanglement = null;
+        this.cardBeforeSuperposition = null;
+
+        // Notify all players about the reset
+        this.broadcast({
+            type: 'GAME_RESET',
+            message: 'Game has been reset. Ready up to start a new game!',
+            roomId: this.id
+        });
+
+        Logger.info("GAME_RESET", `Game state reset complete for room: ${this.id}`);
+    }
+
     public broadcast(message: any, excludePlayerId: string[] = []): void {
         this.players.forEach(player => {
             if (!excludePlayerId.includes(player.id)) {

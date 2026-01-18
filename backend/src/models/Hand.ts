@@ -9,7 +9,11 @@ export class Hand {
     }
 
     removeCard(cardToBeRemoved: Card) {
-        this.cards = this.cards.filter(card => !CardUtils.areCardsEqual(cardToBeRemoved, card))
+        // Use findIndex to ensure we only remove ONE card, not all matching cards
+        const index = this.cards.findIndex(card => CardUtils.areCardsEqual(cardToBeRemoved, card));
+        if (index !== -1) {
+            this.cards.splice(index, 1);
+        }
     }
 
     addCard(cardToBeAdded: Card) {

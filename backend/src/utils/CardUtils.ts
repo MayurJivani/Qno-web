@@ -26,8 +26,13 @@ export class CardUtils {
     ]
 
     static areCardsEqual(cardA: Card, cardB: Card): boolean {
-        return (cardA.lightSide.colour === cardB.lightSide.colour && cardA.lightSide.value === cardB.lightSide.value)
-            && (cardA.darkSide.colour === cardB.darkSide.colour && cardA.darkSide.value === cardB.darkSide.value);
+        // If both cards have IDs, compare by ID (most reliable)
+        if (cardA.id !== undefined && cardB.id !== undefined) {
+            return cardA.id === cardB.id;
+        }
+        // Fallback to comparing face values (for cards without IDs)
+        return (cardA.lightSide?.colour === cardB.lightSide?.colour && cardA.lightSide?.value === cardB.lightSide?.value)
+            && (cardA.darkSide?.colour === cardB.darkSide?.colour && cardA.darkSide?.value === cardB.darkSide?.value);
     }
 
     static isActionCard(cardFace: CardFace): boolean {

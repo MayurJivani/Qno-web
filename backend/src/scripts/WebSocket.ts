@@ -129,6 +129,13 @@ const handleMessage = (ws: WebSocket, message: string) => {
 				}
 				handleEntanglementSelection(ws, parsed.roomId, parsed.playerId, parsed.opponent1Id, parsed.opponent2Id);
 			},
+			'RESET_GAME': () => {
+				if (typeof parsed.roomId !== 'string' || typeof parsed.playerId !== 'string') {
+					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId or playerId' }));
+					return;
+				}
+				handleResetGame(ws, parsed.roomId, parsed.playerId);
+			},
 		'GET_GAME_STATE': () => sendGameState(ws),
 	};
 
@@ -438,6 +445,21 @@ const handleEntanglementSelection = (_ws: WebSocket, roomId: string, playerId: s
 	const { room, player } = result;
 	
 	CardEffectEngine.handleEntanglementSelection(room, player, opponent1Id, opponent2Id);
+}
+
+const handleResetGame = (ws: WebSocket, roomId: string, playerId: string) => {
+	const result = checkValidity(roomId, playerId);
+	if (!result) return;
+	const { room } = result;
+	
+	// Only the host can reset the game
+	if (room.host.id !== playerId) {
+		ws.send(JSON.stringify({ type: 'ERROR', message: 'Only the host can reset the game' }));
+		return;
+	}
+	
+	room.resetForNewGame();
+	Logger.info("RESET_GAME", `Host: ${playerId} reset the game in room: ${roomId}`);
 }
 
 const sendGameState = (ws: WebSocket) => {

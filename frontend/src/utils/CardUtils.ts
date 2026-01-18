@@ -31,6 +31,12 @@ export class CardUtils {
         isLightSideActive?: boolean
         
       ): boolean {
+        // If both cards have IDs, compare by ID (most reliable)
+        if (cardA?.id !== undefined && cardB?.id !== undefined) {
+          return cardA.id === cardB.id;
+        }
+        
+        // Fallback to comparing face values (for cards without IDs)
         if (isLightSideActive === undefined) {
           // check both sides
           return (
@@ -88,8 +94,7 @@ export class CardUtils {
         
         // Handle special cases for better readability with line breaks for long words
         formatted = formatted
-            .replace(/Decoherence/gi, 'Deco\nherence')
-            .replace(/Color Superposition/gi, 'Color\nSuperposition')
+            .replace(/Decoherence/gi, 'Decoher\nence')
             .replace(/Teleportation/gi, 'Teleport\nation')
             .replace(/Measurement/gi, 'Measure\nment')
             .replace(/Entanglement/gi, 'Entangle\nment');

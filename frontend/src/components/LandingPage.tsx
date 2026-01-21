@@ -1,6 +1,6 @@
 // src/components/LandingPage.tsx
 import MovingDotsBackground from "./MovingDotsBackground";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../models/Card";
 import CardComponent from "./CardComponent";
 
@@ -9,14 +9,6 @@ export default function LandingPage() {
 
   const handlePlayClick = () => {
     navigate(`/room`);
-  };
-
-  const handleAboutClick = () => {
-    navigate(`/about-us`);
-  };
-
-  const handleHomeClick = () => {
-    navigate(`/`);
   };
 
   const dummyCards = [
@@ -36,11 +28,11 @@ export default function LandingPage() {
       <MovingDotsBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4 bg-[#2b0057]/95 backdrop-blur-sm">
+      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
-          <a href="" className="hover:underline hover:text-white" onClick={handleHomeClick}>HOME</a>
-          <a href="" className="hover:underline hover:text-white" onClick={handleAboutClick}>ABOUT</a>
-          <a href="" className="hover:underline hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/rules'); }}>RULES</a>
+          <Link to="/" className="hover:underline hover:text-white">HOME</Link>
+          <Link to="/about-us" className="hover:underline hover:text-white">ABOUT</Link>
+          <Link to="/rules" className="hover:underline hover:text-white">RULES</Link>
         </nav>
       </header>
 

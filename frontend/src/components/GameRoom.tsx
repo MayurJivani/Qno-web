@@ -304,11 +304,14 @@ const GameRoom: React.FC = () => {
         if (gameData.playerNames) {
           setPlayerNames(gameData.playerNames);
         }
-        if (gameData.turnOrder && Array.isArray(gameData.turnOrder)) {
-          // Use the turn order from backend to ensure correct sequence
+        // Only set players on GAME_STARTED (initial setup), not on every TURN_CHANGED
+        // This prevents player positions from changing during the game
+        if (message.type === 'GAME_STARTED' && gameData.turnOrder && Array.isArray(gameData.turnOrder)) {
           setPlayers(gameData.turnOrder);
+          setGameStarted(true);
+        } else if (message.type === 'GAME_STARTED') {
+          setGameStarted(true);
         }
-        if (message.type === 'GAME_STARTED') setGameStarted(true);
         break;
       }
 
@@ -335,22 +338,19 @@ const GameRoom: React.FC = () => {
         }
         const parsed: Record<string, Card[]> = {};
 
-        // Use turn order from backend if available, otherwise fall back to opponentHands keys + current player
-        if (turnOrderData && Array.isArray(turnOrderData)) {
-          // Use the turn order from backend to ensure correct sequence
-          setPlayers(turnOrderData);
-        } else {
-          // Extract all opponent IDs from the opponentHands keys
-          const opponentIds = Object.keys(hands);
-          
-          // Update players list: include all opponents + current player
-          // This ensures joined players see all existing players immediately
-          if (currentPlayerId) {
-            setPlayers(() => {
+        // Don't update players array from OPPONENT_HAND - it causes position swapping
+        // Players array should only be set on GAME_STARTED or when players join/leave
+        // If we don't have players set yet (edge case), use turn order as fallback
+        if (players.length === 0) {
+          if (turnOrderData && Array.isArray(turnOrderData)) {
+            setPlayers(turnOrderData);
+          } else {
+            // Extract all opponent IDs from the opponentHands keys
+            const opponentIds = Object.keys(hands);
+            if (currentPlayerId) {
               const allPlayers = [...opponentIds, currentPlayerId];
-              // Remove duplicates and maintain order
-              return Array.from(new Set(allPlayers));
-            });
+              setPlayers(Array.from(new Set(allPlayers)));
+            }
           }
         }
 
@@ -420,7 +420,7 @@ const GameRoom: React.FC = () => {
       case 'DECK_RESHUFFLED': {
         // Draw pile was replenished from discard pile
         const reshuffleData = message as { message?: string; cardsReshuffled?: number };
-        queueNotification(reshuffleData.message || 'Deck reshuffled!', 'info');
+        queueNotification(reshuffleData.message || 'Deck reshuffled!', 'info', 3000);
         break;
       }
 
@@ -453,12 +453,10 @@ const GameRoom: React.FC = () => {
       case 'GAME_END': {
         const gameEndData = message as { winnerId?: string; message?: string; winnerName?: string };
         setGameStarted(false);
-        
-        // Clear localStorage to prevent auto-rejoin after game ends
-        localStorage.removeItem('roomId');
-        localStorage.removeItem('playerId');
-        localStorage.removeItem('sessionToken');
-        
+
+        // Don't clear localStorage - allow play again in same room
+        // localStorage will be cleared when leaving the room
+
         // Show victory screen - use playerIdRef (logged-in player), not currentPlayerId (whose turn)
         const isWinner = gameEndData.winnerId === playerIdRef.current;
         const winnerName = gameEndData.winnerName || playerNames[gameEndData.winnerId || ''] || 'Unknown Player';
@@ -467,6 +465,28 @@ const GameRoom: React.FC = () => {
           isWinner,
           message: isWinner ? '🎉 You Won! 🎉' : `🏆 ${winnerName} wins!`
         });
+        break;
+      }
+
+      case 'GAME_RESET': {
+        // Reset game state for new game
+        setGameStarted(false);
+        setReady(false);
+        setMyHand(new Hand());
+        setOpponentDecks({});
+        setDrawTop(null);
+        setDiscardTop(null);
+        setIsTeleportationMode(false);
+        setEffectNotification(null);
+        setPlayableCardDrawn(null);
+        setVictoryScreen(null);
+        setReadyPlayers(new Set());
+        setCurrentPlayerId(null);
+        setEntangledPlayers(new Set());
+        setEntanglementPileCards([]);
+        setIsLightSideActive(true);
+        isLightSideActiveRef.current = true;
+        queueNotification('🔄 Game reset! Ready up to play again.', 'info', 3000);
         break;
       }
 
@@ -1090,6 +1110,10 @@ const GameRoom: React.FC = () => {
 
   const handleLeaveVictoryScreen = () => {
     disconnect();
+    // Clear localStorage when leaving
+    localStorage.removeItem('roomId');
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('sessionToken');
     // Reset all game state
     setSessionToken(null);
     setRoomId(null);
@@ -1111,6 +1135,12 @@ const GameRoom: React.FC = () => {
     setPlayableCardDrawn(null);
     setDisconnectedPlayers(new Set());
     setVictoryScreen(null);
+  };
+
+  const handlePlayAgain = () => {
+    // Only host can reset the game
+    if (!isHost) return;
+    sendMessage({ type: 'RESET_GAME', roomId, playerId });
   };
 
   const handleReady = () => {
@@ -1149,7 +1179,8 @@ const GameRoom: React.FC = () => {
   }, []);
 
   // Sort players based on turn order from viewing player's perspective
-  // Players are arranged in turn order around the board, with viewing player at bottom
+  // Players are arranged in a FIXED position around the board, with viewing player at bottom
+  // Turn direction does NOT affect visual position - only who goes next in the turn sequence
   const sortedPlayerIds = useMemo(() => {
     if (!playerId || players.length === 0) return players;
     if (players.length === 1) return players;
@@ -1162,60 +1193,39 @@ const GameRoom: React.FC = () => {
       return [...others, playerId];
     }
     
-    // Arrange players around the board in turn order
-    // Position mapping:
-    // - For 3 players: [top-left-center, top-right-center, bottom-center (viewing)]
-    // - For 4 players: [top-center, mid-left, mid-right, bottom-center (viewing)]
+    // Arrange players around the board in FIXED positions based on initial clockwise order
+    // Position mapping (always clockwise visual arrangement):
+    // - For 2 players: [top, bottom (viewing)]
+    // - For 3 players: [top-left, top-right, bottom (viewing)]
+    // - For 4 players: [top, left, right, bottom (viewing)]
     const ordered: string[] = [];
     
-    if (turnDirection === 'clockwise') {
-      if (players.length === 3) {
-        // 3 players: previous -> top-left, next -> top-right, viewing -> bottom
-        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
-        const prevPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
-        ordered.push(players[prevPlayerIdx]); // top-left-center (index 0)
-        ordered.push(players[nextPlayerIdx]); // top-right-center (index 1)
-        ordered.push(playerId); // bottom-center (index 2, viewing)
-      } else if (players.length === 4) {
-        // 4 players: 2nd next -> top-center, next -> mid-left, previous -> mid-right, viewing -> bottom
-        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
-        const secondNextIdx = (viewingPlayerIndex + 2) % players.length;
-        const prevPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
-        ordered.push(players[secondNextIdx]); // top-center (index 0)
-        ordered.push(players[nextPlayerIdx]); // mid-left (index 1)
-        ordered.push(players[prevPlayerIdx]); // mid-right (index 2)
-        ordered.push(playerId); // bottom-center (index 3, viewing)
-      } else {
-        // 2 players: next -> top, viewing -> bottom
-        const nextPlayerIdx = (viewingPlayerIndex + 1) % players.length;
-        ordered.push(players[nextPlayerIdx]);
-        ordered.push(playerId);
-      }
-    } else {
-      // Anti-clockwise: reverse the order
-      if (players.length === 3) {
-        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
-        const prevPlayerIdx = (viewingPlayerIndex + 1) % players.length;
-        ordered.push(players[nextPlayerIdx]); // top-left-center (index 0) - reversed
-        ordered.push(players[prevPlayerIdx]); // top-right-center (index 1) - reversed
-        ordered.push(playerId); // bottom-center (index 2, viewing)
-      } else if (players.length === 4) {
-        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
-        const secondNextIdx = (viewingPlayerIndex - 2 + players.length) % players.length;
-        const prevPlayerIdx = (viewingPlayerIndex + 1) % players.length;
-        ordered.push(players[secondNextIdx]); // top-center (index 0) - reversed
-        ordered.push(players[nextPlayerIdx]); // mid-left (index 1) - reversed
-        ordered.push(players[prevPlayerIdx]); // mid-right (index 2) - reversed
-        ordered.push(playerId); // bottom-center (index 3, viewing)
-      } else {
-        const nextPlayerIdx = (viewingPlayerIndex - 1 + players.length) % players.length;
-        ordered.push(players[nextPlayerIdx]);
-        ordered.push(playerId);
-      }
+    if (players.length === 2) {
+      // 2 players: other player at top, viewing at bottom
+      const otherPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+      ordered.push(players[otherPlayerIdx]); // top
+      ordered.push(playerId); // bottom (viewing)
+    } else if (players.length === 3) {
+      // 3 players: arrange clockwise visually - left, right, bottom
+      // Player at +1 position goes to top-left, player at +2 goes to top-right
+      const leftPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+      const rightPlayerIdx = (viewingPlayerIndex + 2) % players.length;
+      ordered.push(players[leftPlayerIdx]); // top-left (index 0)
+      ordered.push(players[rightPlayerIdx]); // top-right (index 1)
+      ordered.push(playerId); // bottom (index 2, viewing)
+    } else if (players.length === 4) {
+      // 4 players: arrange clockwise - top, left, right, bottom
+      const topPlayerIdx = (viewingPlayerIndex + 2) % players.length;
+      const leftPlayerIdx = (viewingPlayerIndex + 1) % players.length;
+      const rightPlayerIdx = (viewingPlayerIndex + 3) % players.length;
+      ordered.push(players[topPlayerIdx]); // top (index 0)
+      ordered.push(players[leftPlayerIdx]); // left (index 1)
+      ordered.push(players[rightPlayerIdx]); // right (index 2)
+      ordered.push(playerId); // bottom (index 3, viewing)
     }
     
     return ordered;
-  }, [players, playerId, turnDirection]);
+  }, [players, playerId]);
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -1237,12 +1247,27 @@ const GameRoom: React.FC = () => {
               <div className="text-2xl md:text-3xl text-white/80">
                 {victoryScreen.isWinner ? 'Congratulations! You are the quantum champion!' : 'Better luck next time!'}
               </div>
-              <button
-                onClick={handleLeaveVictoryScreen}
-                className="mt-8 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-8 py-4 rounded-xl font-bold text-xl text-white shadow-2xl transform hover:scale-105 transition-all"
-              >
-                🚪 Return to Lobby
-              </button>
+              <div className="flex gap-4 mt-8 justify-center">
+                {isHost && (
+                  <button
+                    onClick={handlePlayAgain}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 px-8 py-4 rounded-xl font-bold text-xl text-white shadow-2xl transform hover:scale-105 transition-all"
+                  >
+                    🔄 Play Again
+                  </button>
+                )}
+                <button
+                  onClick={handleLeaveVictoryScreen}
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-8 py-4 rounded-xl font-bold text-xl text-white shadow-2xl transform hover:scale-105 transition-all"
+                >
+                  🚪 Leave Room
+                </button>
+              </div>
+              {!isHost && (
+                <div className="text-sm text-white/60 mt-4">
+                  Waiting for host to start a new game...
+                </div>
+              )}
             </div>
           </div>
         </>

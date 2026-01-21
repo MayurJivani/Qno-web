@@ -9,6 +9,11 @@ export class DiscardPileManager {
         this.discardPile = [];
     }
 
+    // Reset the discard pile (for new game)
+    public reset(): void {
+        this.discardPile = [];
+    }
+
     public addCardOnTop(card: Card, isLightSideActive: boolean): void {
         (isLightSideActive == true) ? this.discardPile.unshift(card) : this.discardPile.push(card);
     }

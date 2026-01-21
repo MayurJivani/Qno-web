@@ -9,7 +9,11 @@ export class Hand {
     }
 
     removeCard(cardToBeRemoved: Card, isLightSideActive?: boolean) {
-        this.cards = this.cards.filter(card => !CardUtils.areCardsEqual(cardToBeRemoved, card, isLightSideActive))
+        // Use findIndex to ensure we only remove ONE card, not all matching cards
+        const index = this.cards.findIndex(card => CardUtils.areCardsEqual(cardToBeRemoved, card, isLightSideActive));
+        if (index !== -1) {
+            this.cards.splice(index, 1);
+        }
     }
 
     addCard(cardToBeAdded: Card) {

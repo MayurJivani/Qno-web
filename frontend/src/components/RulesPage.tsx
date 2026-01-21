@@ -1,14 +1,9 @@
 // src/components/RulesPage.tsx
 import MovingDotsBackground from "./MovingDotsBackground";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
 export default function RulesPage() {
-  const navigate = useNavigate();
-
-  const handleHomeClick = () => navigate(`/`);
-  const handleAboutClick = () => navigate(`/about-us`);
-
   return (
     <div className="min-h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
       <MovingDotsBackground />
@@ -16,9 +11,9 @@ export default function RulesPage() {
       {/* Header */}
       <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
-          <a href="#" className="hover:underline hover:text-white" onClick={handleHomeClick}>HOME</a>
-          <a href="#" className="hover:underline hover:text-white" onClick={handleAboutClick}>ABOUT</a>
-          <a href="#" className="hover:underline hover:text-white">RULES</a>
+          <Link to="/" className="hover:underline hover:text-white">HOME</Link>
+          <Link to="/about-us" className="hover:underline hover:text-white">ABOUT</Link>
+          <Link to="/rules" className="hover:underline hover:text-white">RULES</Link>
         </nav>
       </header>
 
@@ -495,13 +490,13 @@ export default function RulesPage() {
           transition={{ delay: 1.1 }}
           className="text-center mt-10"
         >
-          <button
-            onClick={handleHomeClick}
-            className="px-6 sm:px-10 py-3 sm:py-4 bg-cyan-400 hover:bg-cyan-300 text-black text-sm sm:text-xl font-extrabold rounded-none border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform transform hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+          <Link
+            to="/"
+            className="inline-block px-6 sm:px-10 py-3 sm:py-4 bg-cyan-400 hover:bg-cyan-300 text-black text-sm sm:text-xl font-extrabold rounded-none border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform transform hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
             style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
           >
             BACK TO HOME
-          </button>
+          </Link>
         </motion.div>
       </main>
     </div>

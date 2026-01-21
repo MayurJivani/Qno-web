@@ -11,6 +11,12 @@ export class DrawPileManager {
 		this.generateDrawPile();
 	}
 
+	// Reset the draw pile with a fresh deck (for new game)
+	public reset(): void {
+		this.drawPile = [];
+		this.generateDrawPile();
+	}
+
 	private static lightSideColours: string[] = [
 		Colours.Light.Blue,
 		Colours.Light.Green,

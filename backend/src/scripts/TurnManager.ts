@@ -7,6 +7,8 @@ export class TurnManager {
 
     constructor(playerIds: string[]) {
         this.playerIds = playerIds;
+        // Randomly select the starting player
+        this.currentIndex = Math.floor(Math.random() * playerIds.length);
     }
 
     getCurrentPlayerId(): string {

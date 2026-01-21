@@ -121,7 +121,7 @@ export class GameManager {
             }
             
             // Measurement card is played on the entanglement pile, not the main discard pile
-            player.setHandCards(player.getHandCards().filter(c => !CardUtils.areCardsEqual(c, card)));
+            player.getHand().removeCard(card);
             
             // Add Measurement card to the entanglement pile
             room.addToEntanglementPile(card);
@@ -151,8 +151,8 @@ export class GameManager {
         }
         if (CardEffectEngine.checkValidMove(card, room, player)) {
             // Remove the card from the player's hand if it is a valid move
-            // TODO: Check if the card being played actually exists in the player's hand or not
-            player.setHandCards(player.getHandCards().filter(c => !CardUtils.areCardsEqual(c, card)));
+            // Use removeCard to ensure we only remove one card (not duplicates)
+            player.getHand().removeCard(card);
             room.discardPileManager.addCardOnTop(card, room.isLightSideActive); // Insert at the top of the discard pile
             const effectType = CardUtils.isActionCard(cardFacePlayed) ? cardFacePlayed.value : undefined;
 

@@ -1,15 +1,10 @@
 // src/components/AboutPage.tsx
 import MovingDotsBackground from "./MovingDotsBackground";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TypeAnimation } from "react-type-animation";
 
 export default function AboutPage() {
-  const navigate = useNavigate();
-
-  const handleAboutClick = () => navigate(`/about-us`);
-  const handleHomeClick = () => navigate(`/`);
-
   const developers = [
     {
       bio: "Sentient Brainrot",
@@ -32,9 +27,9 @@ export default function AboutPage() {
       {/* Header */}
       <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
-          <a href="#" className="hover:underline hover:text-white" onClick={(e) => { e.preventDefault(); handleHomeClick(); }}>HOME</a>
-          <a href="#" className="hover:underline hover:text-white" onClick={(e) => { e.preventDefault(); handleAboutClick(); }}>ABOUT</a>
-          <a href="#" className="hover:underline hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/rules'); }}>RULES</a>
+          <Link to="/" className="hover:underline hover:text-white">HOME</Link>
+          <Link to="/about-us" className="hover:underline hover:text-white">ABOUT</Link>
+          <Link to="/rules" className="hover:underline hover:text-white">RULES</Link>
         </nav>
       </header>
 

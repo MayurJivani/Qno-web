@@ -67,11 +67,11 @@ const GameRoom: React.FC = () => {
       'ENTANGLEMENT_COLLAPSED',
       'DECK_RESHUFFLED'
     ];
-    
+
     if (!loggableTypes.includes(type)) {
       return; // Skip non-important messages
     }
-    
+
     const newLog: WSLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
@@ -92,7 +92,7 @@ const GameRoom: React.FC = () => {
   const inputPlayerNameRef = useRef(inputPlayerName);
   const sessionTokenRef = useRef(sessionToken);
   const roomIdRef = useRef(roomId);
-  
+
   // Notification queue system
   const notificationQueueRef = useRef<Array<{ message: string; type: string; duration: number }>>([]);
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,11 +127,11 @@ const GameRoom: React.FC = () => {
   }
 
   // Function to process notification queue - using ref to avoid closure issues
-  const processNotificationQueueRef = useRef<() => void>(() => {});
-  
+  const processNotificationQueueRef = useRef<() => void>(() => { });
+
   // Function to add notification to queue - using ref to avoid closure issues
   const queueNotificationRef = useRef<(message: string, type: string, duration: number) => void>();
-  
+
   // Initialize the process function
   processNotificationQueueRef.current = () => {
     if (isProcessingNotificationRef.current) {
@@ -166,7 +166,7 @@ const GameRoom: React.FC = () => {
       }, 300);
     }, nextNotification.duration);
   };
-  
+
   // Initialize the queue function
   queueNotificationRef.current = (message: string, type: string, duration: number = 3000) => {
     console.log('Queueing notification:', message, 'Type:', type, 'Duration:', duration); // Debug log
@@ -187,7 +187,7 @@ const GameRoom: React.FC = () => {
     setConnectionError(null);
     const currentIsLightSideActive = isLightSideActiveRef.current;
     const currentPlayerId = playerIdRef.current;
-    
+
     switch (message.type) {
       case 'ROOM_CREATED': {
         setIsHost(true);
@@ -216,19 +216,19 @@ const GameRoom: React.FC = () => {
           setPlayerId(message.playerId);
           localStorage.setItem('roomId', message.roomId);
           localStorage.setItem('playerId', message.playerId);
-          
+
           // Store current player's name from ref
           const currentName = inputPlayerNameRef.current;
           if (currentName && currentName.trim()) {
             setPlayerNames(prev => ({ ...prev, [message.playerId]: currentName.trim() }));
           }
-          
+
           // Handle full player list if provided (includes self and existing players)
-          const joinedData = message as { 
+          const joinedData = message as {
             players?: Array<{ id: string; name: string; isReady: boolean; isHost: boolean }>;
             hostId?: string;
           };
-          
+
           if (joinedData.players && Array.isArray(joinedData.players)) {
             // Set all players
             setPlayers(joinedData.players.map(p => p.id));
@@ -332,7 +332,7 @@ const GameRoom: React.FC = () => {
         const hands = message.opponentHands as Record<string, CardFace[]>;
         const playerNamesData = (message as { playerNames?: Record<string, string> }).playerNames;
         const turnOrderData = (message as { turnOrder?: string[] }).turnOrder;
-        
+
         if (playerNamesData) {
           setPlayerNames(prev => ({ ...prev, ...playerNamesData }));
         }
@@ -428,14 +428,14 @@ const GameRoom: React.FC = () => {
         const cardFace = (message as { card?: CardFace }).card;
         if (!cardFace) break;
         let cardInstance: Card;
-        if(currentIsLightSideActive) {
+        if (currentIsLightSideActive) {
           cardInstance = new Card(undefined, cardFace, undefined)
         } else {
           cardInstance = new Card(undefined, undefined, cardFace)
         }
         setMyHand((prevHand: Hand) => {
           const newHand = new Hand();
-          newHand.setCards(prevHand.getCards());  
+          newHand.setCards(prevHand.getCards());
           newHand.removeCard(cardInstance, currentIsLightSideActive);
           return newHand;
         });
@@ -491,9 +491,9 @@ const GameRoom: React.FC = () => {
       }
 
       case 'CARD_EFFECT': {
-        const effectData = message as { 
-          effect?: string; 
-          isLightSideActive?: boolean; 
+        const effectData = message as {
+          effect?: string;
+          isLightSideActive?: boolean;
           direction?: string;
           teleportation?: {
             cardTeleportedFromPlayerId?: string;
@@ -506,17 +506,17 @@ const GameRoom: React.FC = () => {
             initiatorId?: string;
           };
         };
-        
+
         // Handle side flip effects (Pauli X, Pauli Y)
         if (typeof effectData.isLightSideActive === 'boolean') {
           // Update state and ref immediately so OPPONENT_HAND handler uses correct value
           setIsLightSideActive(effectData.isLightSideActive);
           isLightSideActiveRef.current = effectData.isLightSideActive;
-          
+
           // Trigger flip animation
           setIsFlipping(true);
           setTimeout(() => setIsFlipping(false), 600); // Match animation duration
-          
+
           if (effectData.effect === 'Pauli_X') {
             setEffectNotification({ message: '🔀 Side Flipped!', type: 'flip' });
             setTimeout(() => setEffectNotification(null), 2000);
@@ -525,10 +525,10 @@ const GameRoom: React.FC = () => {
             setTimeout(() => setEffectNotification(null), 2000);
           }
         }
-        
+
         // Handle direction change (Pauli Z, Pauli Y)
         if (effectData.direction !== undefined) {
-          const dirValue = typeof effectData.direction === 'number' ? effectData.direction : 
+          const dirValue = typeof effectData.direction === 'number' ? effectData.direction :
             (String(effectData.direction) === '1' || effectData.direction === 'clockwise' ? 1 : -1);
           const newDirection = dirValue === 1 ? 'clockwise' : 'anti-clockwise';
           setTurnDirection(newDirection);
@@ -537,12 +537,12 @@ const GameRoom: React.FC = () => {
             setTimeout(() => setEffectNotification(null), 2000);
           }
         }
-        
+
         // Handle Measurement effect (including superposition collapse)
         if (effectData.effect === 'Measurement') {
-          const measurementData = effectData as { 
+          const measurementData = effectData as {
             additionalEffect?: string;
-            superpositionCollapse?: { 
+            superpositionCollapse?: {
               restoredCard?: { colour?: string; value?: string };
               collapsedCard?: { colour?: string; value?: string };
               collapsedToSide?: string;
@@ -551,23 +551,23 @@ const GameRoom: React.FC = () => {
             };
             isLightSideActive?: boolean;
           };
-          
+
           // Check if this is superposition resolution
           if (measurementData.additionalEffect === 'SUPERPOSITION_RESOLVED' && measurementData.superpositionCollapse) {
             const collapse = measurementData.superpositionCollapse;
             const restoredCard = collapse.restoredCard || collapse.collapsedCard; // Support both property names
             const cardDesc = restoredCard ? `${restoredCard.colour} ${restoredCard.value}` : 'a card';
-            
+
             if (collapse.sideFlipped) {
               // Side changed - show flip message
-              setEffectNotification({ 
-                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`, 
-                type: 'measurement' 
+              setEffectNotification({
+                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`,
+                type: 'measurement'
               });
             } else {
-              setEffectNotification({ 
-                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`, 
-                type: 'measurement' 
+              setEffectNotification({
+                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`,
+                type: 'measurement'
               });
             }
           } else if (measurementData.superpositionCollapse) {
@@ -575,16 +575,16 @@ const GameRoom: React.FC = () => {
             const collapse = measurementData.superpositionCollapse;
             const collapsedCard = collapse.restoredCard || collapse.collapsedCard;
             const cardDesc = collapsedCard ? `${collapsedCard.colour} ${collapsedCard.value}` : 'a card';
-            
+
             if (collapse.sideFlipped) {
-              setEffectNotification({ 
-                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`, 
-                type: 'measurement' 
+              setEffectNotification({
+                message: `⚛️ Superposition Collapsed & Flipped! Revealed: ${cardDesc}`,
+                type: 'measurement'
               });
             } else {
-              setEffectNotification({ 
-                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`, 
-                type: 'measurement' 
+              setEffectNotification({
+                message: `⚛️ Superposition Collapsed! Revealed: ${cardDesc}`,
+                type: 'measurement'
               });
             }
           } else {
@@ -595,7 +595,7 @@ const GameRoom: React.FC = () => {
           setTimeout(() => setDiscardPileShake(false), 500);
           setTimeout(() => setEffectNotification(null), 2000);
         }
-        
+
         // Handle Decoherence effect
         if (effectData.effect === 'Decoherence') {
           setEffectNotification({ message: '🌈 Decoherence: New Card Revealed!', type: 'superposition' });
@@ -603,7 +603,7 @@ const GameRoom: React.FC = () => {
           setTimeout(() => setDiscardPileShake(false), 500);
           setTimeout(() => setEffectNotification(null), 2000);
         }
-        
+
         // Handle Superposition effect
         if (effectData.effect === 'Superposition') {
           // Check if this is a Superposition on Superposition collapse
@@ -619,7 +619,7 @@ const GameRoom: React.FC = () => {
           }
           setTimeout(() => setEffectNotification(null), 2000);
         }
-        
+
         // Handle Teleportation completion
         if (effectData.teleportation) {
           const { cardTeleportedToPlayerId, cardTeleportedFromPlayerId, cardTeleported } = effectData.teleportation;
@@ -652,9 +652,9 @@ const GameRoom: React.FC = () => {
             setEntangledPlayers(new Set([player1Id, player2Id]));
             const player1Name = playerNames[player1Id] || player1Id.substring(0, 8);
             const player2Name = playerNames[player2Id] || player2Id.substring(0, 8);
-            setEffectNotification({ 
-              message: `🔗 ${player1Name} and ${player2Name} are entangled!`, 
-              type: 'entanglement' 
+            setEffectNotification({
+              message: `🔗 ${player1Name} and ${player2Name} are entangled!`,
+              type: 'entanglement'
             });
             setTimeout(() => setEffectNotification(null), 3000);
           }
@@ -688,7 +688,7 @@ const GameRoom: React.FC = () => {
           playerWhoDrew0Name?: string;
           outcome?: 'A' | 'B';
         };
-        
+
         if (collapseData.player1Id && collapseData.player2Id) {
           // Remove entanglement status
           setEntangledPlayers(prev => {
@@ -819,7 +819,7 @@ const GameRoom: React.FC = () => {
         setConnectionError(errorMessage);
         setIsConnecting(false);
         setIsReconnecting(false);
-        
+
         // If it's a reconnection error, clear the stale session data
         if (errorMessage.includes('rejoin') || errorMessage.includes('Could not rejoin')) {
           localStorage.removeItem('roomId');
@@ -841,8 +841,8 @@ const GameRoom: React.FC = () => {
 
       // Player disconnection handling
       case 'PLAYER_DISCONNECTED': {
-        const disconnectData = message as { 
-          playerId?: string; 
+        const disconnectData = message as {
+          playerId?: string;
           playerName?: string;
           gracePeriodMs?: number;
         };
@@ -860,8 +860,8 @@ const GameRoom: React.FC = () => {
       }
 
       case 'PLAYER_RECONNECTED': {
-        const reconnectData = message as { 
-          playerId?: string; 
+        const reconnectData = message as {
+          playerId?: string;
           playerName?: string;
         };
         if (reconnectData.playerId) {
@@ -881,8 +881,8 @@ const GameRoom: React.FC = () => {
       }
 
       case 'PLAYER_LEFT_PERMANENTLY': {
-        const leftData = message as { 
-          playerId?: string; 
+        const leftData = message as {
+          playerId?: string;
           remainingPlayers?: number;
           cardsRecycled?: number;
         };
@@ -912,7 +912,7 @@ const GameRoom: React.FC = () => {
       }
 
       case 'TURN_SKIPPED': {
-        const skipData = message as { 
+        const skipData = message as {
           skippedPlayerId?: string;
           reason?: string;
         };
@@ -936,7 +936,7 @@ const GameRoom: React.FC = () => {
       }
 
       case 'GAME_OVER': {
-        const gameOverData = message as { 
+        const gameOverData = message as {
           winnerId?: string;
           winnerName?: string;
           reason?: string;
@@ -956,7 +956,7 @@ const GameRoom: React.FC = () => {
       }
 
       case 'REJOINED_ROOM': {
-        const rejoinData = message as { 
+        const rejoinData = message as {
           playerId?: string;
           roomId?: string;
           gameInProgress?: boolean;
@@ -1067,11 +1067,11 @@ const GameRoom: React.FC = () => {
 
     setIsReconnecting(true);
     setIsConnecting(true);
-    connect({ 
-      type: 'REJOIN_ROOM', 
-      roomId: storedRoomId, 
-      playerId: storedPlayerId, 
-      sessionToken: storedSessionToken 
+    connect({
+      type: 'REJOIN_ROOM',
+      roomId: storedRoomId,
+      playerId: storedPlayerId,
+      sessionToken: storedSessionToken
     });
   }, [connect]);
 
@@ -1147,12 +1147,12 @@ const GameRoom: React.FC = () => {
     setReady(true);
     sendMessage({ type: 'PLAYER_READY', roomId, playerId });
   };
-  
+
   const handleUnready = () => {
     setReady(false);
     sendMessage({ type: 'PLAYER_UNREADY', roomId, playerId });
   };
-  
+
   const handleStartGame = () => sendMessage({ type: 'START_GAME', roomId, playerId });
   const handlePlayCard = (card: Card) => {
     sendMessage({ type: 'PLAY_CARD', roomId, playerId, card });
@@ -1184,7 +1184,7 @@ const GameRoom: React.FC = () => {
   const sortedPlayerIds = useMemo(() => {
     if (!playerId || players.length === 0) return players;
     if (players.length === 1) return players;
-    
+
     // Find viewing player's index in players array (this should match turn order from backend)
     const viewingPlayerIndex = players.indexOf(playerId);
     if (viewingPlayerIndex === -1) {
@@ -1192,14 +1192,14 @@ const GameRoom: React.FC = () => {
       const others = players.filter(id => id !== playerId);
       return [...others, playerId];
     }
-    
+
     // Arrange players around the board in FIXED positions based on initial clockwise order
     // Position mapping (always clockwise visual arrangement):
     // - For 2 players: [top, bottom (viewing)]
     // - For 3 players: [top-left, top-right, bottom (viewing)]
     // - For 4 players: [top, left, right, bottom (viewing)]
     const ordered: string[] = [];
-    
+
     if (players.length === 2) {
       // 2 players: other player at top, viewing at bottom
       const otherPlayerIdx = (viewingPlayerIndex + 1) % players.length;
@@ -1223,7 +1223,7 @@ const GameRoom: React.FC = () => {
       ordered.push(players[rightPlayerIdx]); // right (index 2)
       ordered.push(playerId); // bottom (index 3, viewing)
     }
-    
+
     return ordered;
   }, [players, playerId]);
 
@@ -1277,22 +1277,21 @@ const GameRoom: React.FC = () => {
       <div className="qno-grid-bg"></div>
 
       {/* Header */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-50">
-        <div className="flex items-center gap-4">
+      <div className="absolute top-2 left-2 right-2 flex flex-col sm:flex-row justify-between items-center z-50 gap-2 pointer-events-none">
+        <div className="flex items-center gap-2 pointer-events-auto">
           {gameStarted && (
-            <div className={`inline-block px-4 py-2 rounded-lg font-bold text-lg shadow-2xl ${
-              playerId === currentPlayerId ? 'bg-yellow-400 text-black animate-pulse' : 'bg-gray-600 text-white'
-            }`}>
+            <div className={`inline-block px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-bold text-[10px] sm:text-lg shadow-2xl ${playerId === currentPlayerId ? 'bg-yellow-400 text-black animate-pulse' : 'bg-gray-600/80 text-white'
+              }`}>
               {playerId === currentPlayerId ? '🔄 Your Turn' : '⏳ Waiting...'}
             </div>
           )}
-        </div>
-        <div className="flex items-center gap-4">
           {gameStarted && (
-            <div className="bg-black/50 px-4 py-2 rounded-lg font-semibold text-white text-sm">
+            <div className="bg-black/50 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-semibold text-white text-[10px] sm:text-sm">
               {turnDirection === 'clockwise' ? '⬅️' : '➡️'} {turnDirection === 'clockwise' ? 'CW' : 'CCW'}
             </div>
           )}
+        </div>
+        <div className="flex items-center gap-2 pointer-events-auto scale-90 sm:scale-100">
           {roomId && (
             <>
               <button
@@ -1300,7 +1299,7 @@ const GameRoom: React.FC = () => {
                   navigator.clipboard.writeText(roomId ?? '');
                   alert('Room ID copied!');
                 }}
-                className="text-xs sm:text-sm text-white/80 hover:text-white bg-black/30 px-3 py-1 rounded transition-all"
+                className="text-[8px] sm:text-sm text-white/80 hover:text-white bg-black/30 px-2 sm:px-3 py-1 rounded transition-all truncate max-w-[100px] sm:max-w-none"
               >
                 Room: {roomId?.substring(0, 8)}...
               </button>
@@ -1308,12 +1307,12 @@ const GameRoom: React.FC = () => {
                 href="/rules"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold transition-all shadow-lg text-sm"
+                className="bg-indigo-600 hover:bg-indigo-700 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-semibold transition-all shadow-lg text-[10px] sm:text-sm"
               >
                 📖 Rules
               </a>
               <button
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold transition-all shadow-lg text-sm"
+                className="bg-red-600 hover:bg-red-700 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-semibold transition-all shadow-lg text-[10px] sm:text-sm"
                 onClick={handleLeaveRoom}
               >
                 Leave
@@ -1336,44 +1335,44 @@ const GameRoom: React.FC = () => {
                   ⚛️ You are entangled! You must play your Measurement card!
                 </div>
               )}
-                    <GameBoard
-                      sortedPlayerIds={sortedPlayerIds}
-                      playerId={playerId}
-                      playerNames={playerNames}
-                      currentPlayerId={currentPlayerId}
-                      myHand={myHand}
-                      opponentDecks={opponentDecks}
-                      isLightSideActive={isLightSideActive}
-                      discardTop={discardTop}
-                      drawTop={drawTop}
-                      discardPileShake={discardPileShake}
-                      turnDirection={turnDirection}
-                      isTeleportationMode={isTeleportationMode}
-                      isFlipping={isFlipping}
-                      entangledPlayers={entangledPlayers}
-                      disconnectedPlayers={disconnectedPlayers}
-                      mustPlayMeasurement={mustPlayMeasurement}
-                      entanglementPileCards={entanglementPileCards}
-                      isEntanglementResolved={isEntanglementResolved}
-                      getPlayerPosition={getPlayerPosition}
-                      onPlayCard={handlePlayCard}
-                      onDrawCard={handleDrawCard}
-                      onTeleportationSelect={(card, fromPlayerId) => {
-                        sendMessage({
-                          type: 'TELEPORTATION_SELECT',
-                          roomId,
-                          playerId,
-                          fromPlayerId,
-                          card: {
-                            id: card.id,
-                            lightSide: card.lightSide,
-                            darkSide: card.darkSide
-                          }
-                        });
-                        setIsTeleportationMode(false);
-                        setEffectNotification(null);
-                      }}
-                    />
+              <GameBoard
+                sortedPlayerIds={sortedPlayerIds}
+                playerId={playerId}
+                playerNames={playerNames}
+                currentPlayerId={currentPlayerId}
+                myHand={myHand}
+                opponentDecks={opponentDecks}
+                isLightSideActive={isLightSideActive}
+                discardTop={discardTop}
+                drawTop={drawTop}
+                discardPileShake={discardPileShake}
+                turnDirection={turnDirection}
+                isTeleportationMode={isTeleportationMode}
+                isFlipping={isFlipping}
+                entangledPlayers={entangledPlayers}
+                disconnectedPlayers={disconnectedPlayers}
+                mustPlayMeasurement={mustPlayMeasurement}
+                entanglementPileCards={entanglementPileCards}
+                isEntanglementResolved={isEntanglementResolved}
+                getPlayerPosition={getPlayerPosition}
+                onPlayCard={handlePlayCard}
+                onDrawCard={handleDrawCard}
+                onTeleportationSelect={(card, fromPlayerId) => {
+                  sendMessage({
+                    type: 'TELEPORTATION_SELECT',
+                    roomId,
+                    playerId,
+                    fromPlayerId,
+                    card: {
+                      id: card.id,
+                      lightSide: card.lightSide,
+                      darkSide: card.darkSide
+                    }
+                  });
+                  setIsTeleportationMode(false);
+                  setEffectNotification(null);
+                }}
+              />
               <PlayableCardModal
                 playableCardDrawn={playableCardDrawn}
                 isLightSideActive={isLightSideActive}
@@ -1401,9 +1400,9 @@ const GameRoom: React.FC = () => {
               )}
               {/* WebSocket Log Window - only show if enabled in waiting room */}
               {showLogsEnabled && (
-                <WebSocketLogWindow 
-                  logs={wsLogs} 
-                  onClear={() => setWsLogs([])} 
+                <WebSocketLogWindow
+                  logs={wsLogs}
+                  onClear={() => setWsLogs([])}
                 />
               )}
             </>
@@ -1412,7 +1411,7 @@ const GameRoom: React.FC = () => {
               {/* Waiting Room Card */}
               <div className="bg-black/60 backdrop-blur-lg border-2 border-yellow-400 rounded-xl p-6 w-full shadow-[0_0_20px_rgba(250,204,21,0.3)]">
                 <h2 className="text-xl text-yellow-300 font-bold text-center mb-4">🎮 Waiting Room</h2>
-                
+
                 {/* Ready Status Counter */}
                 <div className="text-center mb-4">
                   <div className="text-3xl font-bold text-white mb-1">
@@ -1429,11 +1428,10 @@ const GameRoom: React.FC = () => {
                     const name = playerNames[id] || id.substring(0, 8);
                     const isPlayerHost = players.indexOf(id) === 0; // First player is host
                     return (
-                      <div 
+                      <div
                         key={id}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${
-                          isPlayerReady ? 'bg-green-600/30 border border-green-500' : 'bg-gray-700/50 border border-gray-600'
-                        }`}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${isPlayerReady ? 'bg-green-600/30 border border-green-500' : 'bg-gray-700/50 border border-gray-600'
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{isPlayerReady ? '✅' : '⏳'}</span>
@@ -1441,9 +1439,8 @@ const GameRoom: React.FC = () => {
                             {name} {isYou && '(You)'} {isPlayerHost && '👑'}
                           </span>
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          isPlayerReady ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'
-                        }`}>
+                        <span className={`text-xs px-2 py-1 rounded ${isPlayerReady ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'
+                          }`}>
                           {isPlayerReady ? 'READY' : 'NOT READY'}
                         </span>
                       </div>
@@ -1482,8 +1479,8 @@ const GameRoom: React.FC = () => {
                     )
                   ) : (
                     <p className="text-gray-400 text-sm">
-                      {players.length < 2 
-                        ? 'Waiting for more players to join...' 
+                      {players.length < 2
+                        ? 'Waiting for more players to join...'
                         : `Waiting for ${players.filter(id => !readyPlayers.has(id)).length} player(s) to ready up...`
                       }
                     </p>
@@ -1496,30 +1493,26 @@ const GameRoom: React.FC = () => {
                     <span className={`text-xs transition-colors ${showLogsEnabled ? 'text-gray-500' : 'text-cyan-400'}`}>
                       OFF
                     </span>
-                    <div 
+                    <div
                       onClick={() => setShowLogsEnabled(!showLogsEnabled)}
-                      className={`relative w-14 h-7 rounded-full transition-all duration-300 border-2 ${
-                        showLogsEnabled 
-                          ? 'bg-cyan-900/60 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.4)]' 
+                      className={`relative w-14 h-7 rounded-full transition-all duration-300 border-2 ${showLogsEnabled
+                          ? 'bg-cyan-900/60 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.4)]'
                           : 'bg-gray-800 border-gray-600'
-                      }`}
+                        }`}
                     >
                       {/* Track glow effect */}
-                      <div className={`absolute inset-0 rounded-full transition-opacity duration-300 ${
-                        showLogsEnabled ? 'opacity-100' : 'opacity-0'
-                      }`} style={{
-                        background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.2), transparent)'
-                      }} />
+                      <div className={`absolute inset-0 rounded-full transition-opacity duration-300 ${showLogsEnabled ? 'opacity-100' : 'opacity-0'
+                        }`} style={{
+                          background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.2), transparent)'
+                        }} />
                       {/* Slider knob */}
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${
-                        showLogsEnabled 
-                          ? 'left-7 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' 
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${showLogsEnabled
+                          ? 'left-7 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]'
                           : 'left-0.5 bg-gray-500'
-                      }`}>
+                        }`}>
                         {/* Knob inner detail */}
-                        <div className={`absolute inset-1 rounded-full ${
-                          showLogsEnabled ? 'bg-cyan-300' : 'bg-gray-400'
-                        }`} />
+                        <div className={`absolute inset-1 rounded-full ${showLogsEnabled ? 'bg-cyan-300' : 'bg-gray-400'
+                          }`} />
                       </div>
                     </div>
                     <span className={`text-xs transition-colors ${showLogsEnabled ? 'text-cyan-400' : 'text-gray-500'}`}>

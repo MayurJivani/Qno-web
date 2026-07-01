@@ -21,11 +21,11 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
+    <div className="h-screen text-white font-['Press_Start_2P'] relative overflow-hidden flex flex-col">
       <MovingDotsBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
+      <header className="relative w-full z-50 px-4 sm:px-6 py-4 flex-shrink-0">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
           <Link to="/" className="hover:underline hover:text-white">HOME</Link>
           <Link to="/about-us" className="hover:underline hover:text-white">ABOUT</Link>
@@ -34,9 +34,9 @@ export default function AboutPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 pt-28 sm:pt-28 px-4 max-w-4xl mx-auto">
+      <main className="relative z-10 flex-grow px-4 max-w-4xl mx-auto overflow-y-auto no-scrollbar pb-8 w-full">
         {/* Hero Section */}
-        <section className="text-center">
+        <section className="text-center pt-4 sm:pt-8">
           <h1 className="text-3xl sm:text-5xl text-yellow-300 font-extrabold text-shadow-lg/30">
             Meet the Dev'z
           </h1>

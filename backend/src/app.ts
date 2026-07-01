@@ -1,6 +1,7 @@
 // app.ts
 import express, { Request, Response, NextFunction } from 'express';
 import http from 'http';
+import path from 'path';
 import { setupWebSocketServer } from './scripts/WebSocket';
 import { Logger } from './utils/Logger';
 
@@ -24,14 +25,18 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware, routes, and other Express configurations
-app.get('/', (_req: Request, res: Response) => {
-  res.json({ status: 'Server is running', timestamp: new Date().toISOString() });
-});
+const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
 
+// Middleware, routes, and other Express configurations
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Serve frontend app for all non-API routes
+app.get('*', (_req: Request, res: Response) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 // Initialize WebSocket server

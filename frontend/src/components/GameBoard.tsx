@@ -61,10 +61,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
         const position = getPlayerPosition(index, sortedPlayerIds.length);
         const isCurrentTurn = id === currentPlayerId;
         const isYou = id === playerId;
-        const cardCount = id === playerId 
-          ? myHand.getCards().length 
+        const cardCount = id === playerId
+          ? myHand.getCards().length
           : (opponentDecks[id]?.length || 0);
-        
+
         // Only render if we have card count info or it's the current player
         if (id === playerId || opponentDecks[id]?.length !== undefined) {
           return (
@@ -84,10 +84,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
       })}
 
       {/* Central Game Board */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[20%] z-30 flex items-center gap-8">
+      <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex items-center gap-4 sm:gap-8 scale-[0.6] sm:scale-100 transition-transform duration-300">
         {/* Turn Direction Indicator */}
         <div className="absolute -top-18 left-1/2 -translate-x-1/2 z-40">
-          <div 
+          <div
             className="text-4xl transition-transform duration-500"
             style={{
               transform: turnDirection === 'clockwise' ? 'rotate(0deg)' : 'rotate(180deg)'
@@ -101,10 +101,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
         <div className="flex flex-col items-center relative z-50">
           <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">DRAW PILE</div>
           {drawTop && (
-            <div 
-              className={`relative cursor-pointer transition-transform hover:scale-110 ${
-                playerId === currentPlayerId && !isTeleportationMode ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-              }`}
+            <div
+              className={`relative cursor-pointer transition-transform hover:scale-110 ${playerId === currentPlayerId && !isTeleportationMode ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                }`}
               style={{
                 transform: 'translateZ(30px) rotate(-5deg)',
                 transformStyle: 'preserve-3d'
@@ -133,7 +132,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           <div className="flex flex-col items-center relative z-50">
             <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">DISCARD PILE</div>
             {discardTop && (
-              <div 
+              <div
                 className={`relative transition-all duration-300 ${discardPileShake ? 'discard-pile-shake' : ''}`}
                 style={{
                   transform: 'translateZ(50px)',
@@ -160,9 +159,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 {entanglementPileCards.map((cardFace, index) => (
                   <div
                     key={index}
-                    className={`absolute transition-all duration-600 ${
-                      isEntanglementResolved ? 'translate-x-[-40px] opacity-0 scale-75' : 'opacity-100'
-                    }`}
+                    className={`absolute transition-all duration-600 ${isEntanglementResolved ? 'translate-x-[-40px] opacity-0 scale-75' : 'opacity-100'
+                      }`}
                     style={{
                       transform: `translateZ(${40 - index * 2}px) ${isEntanglementResolved ? 'translateX(-40px) scale(0.75)' : ''}`,
                       transformStyle: 'preserve-3d',
@@ -193,7 +191,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
         const position = getPlayerPosition(opponentIndexInFullList, sortedPlayerIds.length);
         const cards = opponentDecks[id] || [];
         const isSelectable = isTeleportationMode && playerId === currentPlayerId;
-        
+
         // Position opponent cards below their avatars - match avatar positions
         // Add more space between avatar and cards to prevent overlapping
         const positionStyles = {
@@ -208,7 +206,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
         };
 
         return (
-          <div 
+          <div
             key={id}
             className="absolute z-30"
             style={positionStyles[position]}

@@ -7,7 +7,7 @@ const MuteButton: React.FC = () => {
   return (
     <button
       onClick={toggleMute}
-      className="fixed bottom-4 left-4 z-[999] w-12 h-12 rounded-full bg-black/70 hover:bg-black/90 border-2 border-yellow-400/50 hover:border-yellow-400 flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 group"
+      className="fixed bottom-4 left-4 z-[999] w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/70 hover:bg-black/90 border-2 border-yellow-400/50 hover:border-yellow-400 flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 group"
       title={isMuted ? 'Unmute' : 'Mute'}
       aria-label={isMuted ? 'Unmute background music' : 'Mute background music'}
     >

@@ -2,8 +2,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 import http from 'http';
 import path from 'path';
+import dotenv from 'dotenv';
 import { setupWebSocketServer } from './scripts/WebSocket';
 import { Logger } from './utils/Logger';
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
 const server = http.createServer(app);

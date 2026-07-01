@@ -43,8 +43,8 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-purple-900/90 via-indigo-900/90 to-pink-900/90 rounded-xl border-2 border-yellow-400 shadow-2xl relative z-50 max-w-md mx-auto mt-20 backdrop-blur-sm" 
-         style={{ fontFamily: "'Press Start 2P', cursive" }}>
+    <div className="flex flex-col items-center gap-2 sm:gap-4 p-4 sm:p-8 bg-gradient-to-br from-purple-900/90 via-indigo-900/90 to-pink-900/90 rounded-xl border-2 border-yellow-400 shadow-2xl relative z-50 max-w-md mx-auto mt-4 sm:mt-20 backdrop-blur-sm"
+      style={{ fontFamily: "'Press Start 2P', cursive" }}>
       {/* Back Button */}
       <button
         onClick={() => navigate('/')}
@@ -80,8 +80,8 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
         />
       </div>
       <div className="flex flex-col gap-3 w-full">
-        <button 
-          className="bg-green-500 hover:bg-green-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2" 
+        <button
+          className="bg-green-500 hover:bg-green-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2"
           onClick={onCreateRoom}
           disabled={isConnecting || !inputPlayerName.trim()}
           style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
@@ -107,8 +107,8 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
             style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
           />
         </div>
-        <button 
-          className="bg-blue-500 hover:bg-blue-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2" 
+        <button
+          className="bg-blue-500 hover:bg-blue-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2"
           onClick={onJoinRoom}
           disabled={isConnecting || !inputRoomId.trim() || !inputPlayerName.trim()}
           style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
@@ -125,8 +125,8 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
             Previous Session Found
           </div>
           <div className="flex gap-2">
-            <button 
-              className="flex-1 bg-orange-500 hover:bg-orange-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2" 
+            <button
+              className="flex-1 bg-orange-500 hover:bg-orange-600 px-4 py-3 rounded-none font-bold text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center gap-2"
               onClick={onReconnect}
               disabled={isConnecting}
               style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
@@ -134,8 +134,8 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
               <span className="text-lg">🔄</span>
               <span>{isConnecting ? 'Reconnecting...' : 'Reconnect'}</span>
             </button>
-            <button 
-              className="bg-gray-500 hover:bg-gray-600 px-3 py-3 rounded-none font-bold text-sm transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center" 
+            <button
+              className="bg-gray-500 hover:bg-gray-600 px-3 py-3 rounded-none font-bold text-sm transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-4 border-black text-white relative z-50 flex items-center justify-center"
               onClick={handleClearSession}
               disabled={isConnecting}
               title="Clear stored session"

@@ -13,9 +13,9 @@ interface FannedCardsProps {
   isPlayerHand?: boolean; // true for player's hand (at bottom), false for opponent hands (at top)
 }
 
-const FannedCards: React.FC<FannedCardsProps> = ({ 
-  cards, 
-  isLightSideActive, 
+const FannedCards: React.FC<FannedCardsProps> = ({
+  cards,
+  isLightSideActive,
   onClick,
   isSelectable = false,
   fanDirection = 'left',
@@ -25,26 +25,30 @@ const FannedCards: React.FC<FannedCardsProps> = ({
 }) => {
   if (cards.length === 0) return null;
 
+  const isSmall = typeof window !== 'undefined' && window.innerWidth < 640;
+  const overlap = isSmall ? 12 : 18;
+  const cardBaseWidth = isSmall ? 48 : 80;
+
   const maxRotation = 15;
   const rotationStep = (maxRotation * 2) / Math.max(cards.length - 1, 1);
 
   return (
-    <div className="relative" style={{ 
-      height: '100px',
-      width: cards.length > 1 ? `${cards.length * 18 + 64}px` : '64px',
+    <div className="relative" style={{
+      height: isSmall ? '80px' : '100px',
+      width: cards.length > 1 ? `${cards.length * overlap + cardBaseWidth}px` : `${cardBaseWidth}px`,
       perspective: '1000px'
     }}>
       {cards.map((card, index) => {
         const rotation = -maxRotation + (rotationStep * index);
         const finalRotation = fanDirection === 'right' ? rotation : rotation;
-        const offsetX = index * 18;
-        const offsetY = Math.abs(finalRotation) * 0.5;
-        
+        const offsetX = index * overlap;
+        const offsetY = Math.abs(finalRotation) * (isSmall ? 0.3 : 0.5);
+
         const activeFace = isLightSideActive ? card.lightSide : card.darkSide;
         const cardValue = CardUtils.formatCardValue(activeFace?.value || '');
         // For tooltip, use raw value with underscores replaced by spaces (no line breaks)
         const tooltipValue = (activeFace?.value || '').replace(/_/g, ' ');
-        
+
         return (
           <div
             key={card.id || index}
@@ -70,20 +74,18 @@ const FannedCards: React.FC<FannedCardsProps> = ({
           >
             {/* Hover Tooltip - Card Value */}
             {/* Position tooltip above for player hand (at bottom), below for opponent hands (at top) */}
-            <div className={`absolute left-1/2 -translate-x-1/2 bg-black/95 border-2 border-yellow-300 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-[0_0_10px_rgba(250,204,21,0.5)] ${
-              isPlayerHand ? '-top-10' : '-bottom-10'
-            }`}>
+            <div className={`absolute left-1/2 -translate-x-1/2 bg-black/95 border-2 border-yellow-300 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-[0_0_10px_rgba(250,204,21,0.5)] ${isPlayerHand ? '-top-10' : '-bottom-10'
+              }`}>
               <span className="text-yellow-300 text-[10px] sm:text-xs font-['Press_Start_2P'] drop-shadow-[1px_1px_0_rgba(0,0,0,0.8)] block">
                 {tooltipValue}
               </span>
               {/* Tooltip Arrow - points down for player hand, up for opponent hands */}
-              <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] ${
-                isPlayerHand 
-                  ? 'top-full border-t-[5px] border-l-transparent border-r-transparent border-t-yellow-300' 
-                  : 'bottom-full border-b-[5px] border-l-transparent border-r-transparent border-b-yellow-300'
-              }`}></div>
+              <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] ${isPlayerHand
+                ? 'top-full border-t-[5px] border-l-transparent border-r-transparent border-t-yellow-300'
+                : 'bottom-full border-b-[5px] border-l-transparent border-r-transparent border-b-yellow-300'
+                }`}></div>
             </div>
-            
+
             <>
               <div className="transition-transform duration-200 hover:-translate-y-4">
                 {(() => {
@@ -92,15 +94,14 @@ const FannedCards: React.FC<FannedCardsProps> = ({
                   const shouldDisable = mustPlayMeasurement && !isMeasurement;
                   return (
                     <div
-                      className={`relative w-16 h-24 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 rounded-sm transition-transform duration-150 ${
-                        shouldDisable
-                          ? 'border-gray-500 opacity-50 cursor-not-allowed'
-                          : shouldHighlight
-                            ? 'border-purple-400 ring-4 ring-purple-400 ring-offset-2 animate-pulse cursor-pointer'
-                            : onClick || isSelectable
-                              ? 'border-black hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none cursor-pointer'
-                              : 'border-black cursor-default'
-                      } ${isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''} ${isFlipping ? 'card-flip-animation' : ''}`}
+                      className={`relative w-12 h-20 sm:w-20 sm:h-28 flex flex-col items-center justify-center text-white font-bold p-1 sm:p-1.5 border-2 rounded-sm transition-transform duration-150 ${shouldDisable
+                        ? 'border-gray-500 opacity-50 cursor-not-allowed'
+                        : shouldHighlight
+                          ? 'border-purple-400 ring-4 ring-purple-400 ring-offset-2 animate-pulse cursor-pointer'
+                          : onClick || isSelectable
+                            ? 'border-black hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none cursor-pointer'
+                            : 'border-black cursor-default'
+                        } ${isSelectable ? 'ring-2 ring-yellow-400 ring-offset-1' : ''} ${isFlipping ? 'card-flip-animation' : ''}`}
                       style={{
                         background: getPixelGradient((isLightSideActive ? card.lightSide : card.darkSide)?.colour || 'Gray'),
                         imageRendering: "pixelated",
@@ -115,12 +116,11 @@ const FannedCards: React.FC<FannedCardsProps> = ({
                         <span className="uppercase text-[6px] sm:text-[7px] leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] mb-0.5">
                           {(isLightSideActive ? card.lightSide : card.darkSide)?.colour || ''}
                         </span>
-                        <span 
-                          className={`${
-                            !isNaN(Number((isLightSideActive ? card.lightSide : card.darkSide)?.value)) 
-                              ? 'text-lg sm:text-xl' 
-                              : 'text-[8px] sm:text-[9px]'
-                          } leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] whitespace-pre-line break-words`}
+                        <span
+                          className={`${!isNaN(Number((isLightSideActive ? card.lightSide : card.darkSide)?.value))
+                            ? 'text-lg sm:text-xl'
+                            : 'text-[8px] sm:text-[9px]'
+                            } leading-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.7)] whitespace-pre-line break-words`}
                           style={{
                             lineHeight: '1.1',
                             wordBreak: 'break-word',

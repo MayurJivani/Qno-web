@@ -6,10 +6,12 @@ import AboutPage from './components/AboutPage';
 import RulesPage from './components/RulesPage';
 import { AudioProvider } from './contexts/AudioContext';
 import MuteButton from './components/MuteButton';
+import OrientationOverlay from './components/OrientationOverlay';
 
 const App: React.FC = React.memo(() => {
   return (
     <AudioProvider>
+      <OrientationOverlay />
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />

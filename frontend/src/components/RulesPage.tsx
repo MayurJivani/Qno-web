@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 
 export default function RulesPage() {
   return (
-    <div className="min-h-screen text-white font-['Press_Start_2P'] relative overflow-hidden">
+    <div className="h-screen text-white font-['Press_Start_2P'] relative overflow-hidden flex flex-col">
       <MovingDotsBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 px-4 sm:px-6 py-4">
+      <header className="relative w-full z-50 px-4 sm:px-6 py-4 flex-shrink-0">
         <nav className="flex justify-end gap-6 sm:gap-10 text-yellow-300 text-[10px] sm:text-xs tracking-widest">
           <Link to="/" className="hover:underline hover:text-white">HOME</Link>
           <Link to="/about-us" className="hover:underline hover:text-white">ABOUT</Link>
@@ -17,8 +17,8 @@ export default function RulesPage() {
         </nav>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 pt-24 sm:pt-28 px-4 sm:px-6 max-w-5xl mx-auto pb-12">
+      {/* Main Content - Scrollable */}
+      <main className="relative z-10 flex-grow px-4 sm:px-6 max-w-5xl mx-auto overflow-y-auto no-scrollbar pb-12 w-full">
         {/* Title */}
         <motion.section
           initial={{ opacity: 0, y: -20 }}
@@ -45,12 +45,12 @@ export default function RulesPage() {
             <h2 className="text-xl sm:text-2xl text-yellow-300 mb-4">📖 OVERVIEW</h2>
             <div className="text-xs sm:text-sm text-gray-200 leading-relaxed space-y-3">
               <p>
-                Qno is a quantum-themed card game where players try to be the first to empty their hand. 
-                Cards have two sides (Light and Dark), and you can only play cards that match the active side's 
+                Qno is a quantum-themed card game where players try to be the first to empty their hand.
+                Cards have two sides (Light and Dark), and you can only play cards that match the active side's
                 color or value on top of the discard pile.
               </p>
               <p>
-                The game starts with the Light side active. You can see your own cards on both sides, but 
+                The game starts with the Light side active. You can see your own cards on both sides, but
                 opponents only see the inactive side of their cards!
               </p>
             </div>
@@ -165,8 +165,8 @@ export default function RulesPage() {
               <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">Drawing Cards</h3>
                 <p>
-                  If you can't play a card, you must draw one card from the draw pile. 
-                  If the drawn card can be played, you'll be prompted to either <strong>play it</strong> or <strong>keep it</strong> in your hand. 
+                  If you can't play a card, you must draw one card from the draw pile.
+                  If the drawn card can be played, you'll be prompted to either <strong>play it</strong> or <strong>keep it</strong> in your hand.
                   If you keep it (or it can't be played), your turn ends.
                 </p>
               </div>
@@ -233,7 +233,7 @@ export default function RulesPage() {
               <div className="bg-yellow-900/30 p-4 rounded border border-yellow-500">
                 <h3 className="text-yellow-300 font-bold mb-2">Pauli X</h3>
                 <p>
-                  Flips all cards to show the opposite side (Light ↔ Dark). This changes which side 
+                  Flips all cards to show the opposite side (Light ↔ Dark). This changes which side
                   is active for all players. Opponent cards you see will flip!
                 </p>
               </div>
@@ -260,7 +260,7 @@ export default function RulesPage() {
               <div className="bg-purple-900/30 p-4 rounded border border-purple-500">
                 <h3 className="text-purple-300 font-bold mb-2">Pauli Y</h3>
                 <p>
-                  Flips all cards AND reverses the turn direction! This powerful card does both: 
+                  Flips all cards AND reverses the turn direction! This powerful card does both:
                   changes the active side and flips the turn order (clockwise ↔ anti-clockwise).
                   <br /><br />
                   <strong>2-Player Games:</strong> The player who plays Pauli Y gets to repeat their turn!
@@ -269,7 +269,7 @@ export default function RulesPage() {
               <div className="bg-purple-900/30 p-4 rounded border border-purple-500">
                 <h3 className="text-purple-300 font-bold mb-2">Pauli Z</h3>
                 <p>
-                  Reverses the turn direction without flipping sides. Use this to change the turn order 
+                  Reverses the turn direction without flipping sides. Use this to change the turn order
                   (clockwise ↔ anti-clockwise) while keeping the current side active.
                   <br /><br />
                   <strong>2-Player Games:</strong> The player who plays Pauli Z gets to repeat their turn!
@@ -304,7 +304,7 @@ export default function RulesPage() {
               <div className="bg-black/50 p-4 rounded border border-gray-500">
                 <h3 className="text-white font-bold mb-2">Superposition</h3>
                 <p>
-                  Creates quantum uncertainty! When played, the current discard pile top is saved. 
+                  Creates quantum uncertainty! When played, the current discard pile top is saved.
                   While Superposition is active, only <strong>Measurement</strong> or another <strong>Superposition</strong> card can be played.
                   If you can't play either, you must draw cards until you can.
                   <br /><br />
@@ -314,7 +314,7 @@ export default function RulesPage() {
               <div className="bg-black/50 p-4 rounded border border-gray-500">
                 <h3 className="text-white font-bold mb-2">Decoherence</h3>
                 <p>
-                  Draws a new non-action card from the draw pile and places it on the discard pile. 
+                  Draws a new non-action card from the draw pile and places it on the discard pile.
                   This reveals a new card that players can now match!
                 </p>
               </div>
@@ -379,31 +379,31 @@ export default function RulesPage() {
               <div>
                 <h3 className="text-yellow-300 mb-2">Teleportation Mode</h3>
                 <p>
-                  When Teleportation is played, you must select an opponent's card before doing anything else. 
+                  When Teleportation is played, you must select an opponent's card before doing anything else.
                   You cannot play other cards or draw until you select a card to teleport.
                 </p>
               </div>
               <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">Superposition Lock</h3>
                 <p>
-                  When Superposition is on the discard pile, only <strong>Measurement</strong> or <strong>Superposition</strong> cards can be played. 
-                  Players must draw cards until they get one of these. The original card (before Superposition) 
+                  When Superposition is on the discard pile, only <strong>Measurement</strong> or <strong>Superposition</strong> cards can be played.
+                  Players must draw cards until they get one of these. The original card (before Superposition)
                   is saved and will return when collapsed - but with a 50/50 chance of flipping to its dark side!
                 </p>
               </div>
               <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">Side Flipping</h3>
                 <p>
-                  When Pauli X or Pauli Y flips the sides, all cards change their active face. 
-                  This means the discard pile card changes color/value, and opponent cards you see 
+                  When Pauli X or Pauli Y flips the sides, all cards change their active face.
+                  This means the discard pile card changes color/value, and opponent cards you see
                   will flip to show their other side!
                 </p>
               </div>
               <div className="mt-4">
                 <h3 className="text-yellow-300 mb-2">No Action Card on Top</h3>
                 <p>
-                  After any effect resolution (Measurement, Decoherence) or side flip (Pauli X/Y), 
-                  an action card cannot remain on top of the discard pile. If one ends up there, 
+                  After any effect resolution (Measurement, Decoherence) or side flip (Pauli X/Y),
+                  an action card cannot remain on top of the discard pile. If one ends up there,
                   it's automatically replaced with a non-action card from the pile or draw deck.
                 </p>
               </div>

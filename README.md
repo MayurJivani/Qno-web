@@ -5,6 +5,9 @@
 ![Node](https://img.shields.io/badge/Node-backend-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![Multiplayer](https://img.shields.io/badge/multiplayer-real--time-orange?style=flat-square)
 [![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Qno-web?style=flat-square)](https://github.com/MayurJivani/Qno-web/commits/main)
+[![Stars](https://img.shields.io/github/stars/MayurJivani/Qno-web?style=flat-square)](https://github.com/MayurJivani/Qno-web/stargazers)
+[![Issues](https://img.shields.io/github/issues/MayurJivani/Qno-web?style=flat-square)](https://github.com/MayurJivani/Qno-web/issues)
+![Code size](https://img.shields.io/github/languages/code-size/MayurJivani/Qno-web?style=flat-square)
 
 A real-time multiplayer card game that teaches quantum computing by making you
 play with it. Uno rules, plus quantum gates, superposition and entanglement as

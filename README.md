@@ -8,6 +8,9 @@
 [![Stars](https://img.shields.io/github/stars/MayurJivani/Qno-web?style=flat-square)](https://github.com/MayurJivani/Qno-web/stargazers)
 [![Issues](https://img.shields.io/github/issues/MayurJivani/Qno-web?style=flat-square)](https://github.com/MayurJivani/Qno-web/issues)
 ![Code size](https://img.shields.io/github/languages/code-size/MayurJivani/Qno-web?style=flat-square)
+![superposition](https://img.shields.io/badge/superposition-playable-8e44ad?style=flat-square)
+![entanglement](https://img.shields.io/badge/entanglement-also%20playable-9b59b6?style=flat-square)
+![rules lawyers](https://img.shields.io/badge/rules%20lawyers-welcome-3498db?style=flat-square)
 
 A real-time multiplayer card game that teaches quantum computing by making you
 play with it. Uno rules, plus quantum gates, superposition and entanglement as

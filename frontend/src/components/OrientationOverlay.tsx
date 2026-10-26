@@ -7,9 +7,9 @@ const OrientationOverlay: React.FC = () => {
     useEffect(() => {
         const checkOrientation = () => {
             const portrait = window.innerHeight > window.innerWidth;
-            // We check for mobile context - usually windows smaller than 1024px width in landscape
-            // or simply if portrait and small width.
-            const mobile = window.innerWidth <= 1024 || (window.innerHeight <= 1024 && window.innerWidth < window.innerHeight);
+            // Only touch devices can be "rotated" - a narrow desktop window should never trigger this.
+            const isTouchDevice = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+            const mobile = isTouchDevice && window.innerWidth <= 1024;
             setIsPortrait(portrait);
             setIsMobile(mobile);
         };

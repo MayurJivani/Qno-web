@@ -1301,7 +1301,7 @@ const GameRoom: React.FC = () => {
                 }}
                 className="text-[8px] sm:text-sm text-white/80 hover:text-white bg-black/30 px-2 sm:px-3 py-1 rounded transition-all truncate max-w-[100px] sm:max-w-none"
               >
-                Room: {roomId?.substring(0, 8)}...
+                Room: {roomId}
               </button>
               <a
                 href="/rules"

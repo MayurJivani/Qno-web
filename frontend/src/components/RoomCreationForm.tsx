@@ -91,19 +91,20 @@ const RoomCreationForm: React.FC<RoomCreationFormProps> = ({
         </button>
         <div className="text-center text-gray-400 font-semibold text-xs">OR</div>
         <div className="flex flex-col gap-2">
-          <label className="text-white text-xs text-left w-full px-1">Enter Room ID</label>
+          <label className="text-white text-xs text-left w-full px-1">Enter Room Code</label>
           <input
             type="text"
-            className="rounded-none p-3 text-black w-full text-center font-semibold text-sm bg-gray-200 border-2 border-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400 z-50 relative"
-            placeholder="Enter Room ID"
+            className="rounded-none p-3 text-black w-full text-center font-semibold text-sm bg-gray-200 border-2 border-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400 z-50 relative tracking-[0.3em] uppercase"
+            placeholder="Room Code"
             value={inputRoomId}
-            onChange={(e) => onRoomIdChange(e.target.value)}
+            onChange={(e) => onRoomIdChange(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !isConnecting && inputRoomId.trim() && inputPlayerName.trim()) {
                 onJoinRoom();
               }
             }}
             disabled={isConnecting}
+            maxLength={6}
             style={{ fontFamily: "'Press Start 2P', cursive", imageRendering: "pixelated" }}
           />
         </div>

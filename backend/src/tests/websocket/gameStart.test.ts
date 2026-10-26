@@ -25,10 +25,10 @@ test('WebSocket server should check if all players are ready before starting gam
 
     await Promise.all([player1.connect(), player2.connect()]);
 
-    player1.send({ type: 'CREATE_ROOM' });
+    player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
     const { roomId, playerId: player1Id } = await player1.waitFor('ROOM_CREATED');
 
-    player2.send({ type: 'JOIN_ROOM', roomId });
+    player2.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player2' });
     const { playerId: player2Id } = await player2.waitFor('JOINED_ROOM');
 
     player1.send({ type: 'PLAYER_READY', roomId, playerId: player1Id });

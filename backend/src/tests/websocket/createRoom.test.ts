@@ -22,7 +22,7 @@ test('WebSocket server creates room and responds with ROOM_CREATED', async () =>
     const wsClient = new WebSockTestClient(`ws://localhost:${port}`);
     await wsClient.connect();
 
-    wsClient.send({ type: 'CREATE_ROOM' });
+    wsClient.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
     const message = await wsClient.waitFor('ROOM_CREATED');
 
     expect(message).toHaveProperty('roomId');

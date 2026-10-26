@@ -1,5 +1,6 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';  // Import the http module
+import { randomBytes } from 'crypto';
 import { Card } from '../models/Card';
 import { v4 as uuidv4 } from 'uuid';
 import { GameRoom } from '../models/GameRoom';
@@ -11,6 +12,26 @@ import { CardEffectEngine } from './CardEffectEngine';
 
 const rooms: Map<string, GameRoom> = new Map();
 const playerMap = new Map<WebSocket, { roomId: string, playerId: string }>();
+
+// Unambiguous alphabet (no 0/O/1/I) so a spoken or handwritten code stays readable
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateRoomCode(): string {
+	const bytes = randomBytes(6);
+	let code = '';
+	for (const b of bytes) {
+		code += ROOM_CODE_ALPHABET[b % ROOM_CODE_ALPHABET.length];
+	}
+	return code;
+}
+
+function generateUniqueRoomCode(): string {
+	let code: string;
+	do {
+		code = generateRoomCode();
+	} while (rooms.has(code));
+	return code;
+}
 
 export function setupWebSocketServer(server: http.Server) {
 	const wss = new WebSocketServer({ server });
@@ -154,7 +175,7 @@ const handleMessage = (ws: WebSocket, message: string) => {
 
 
 const createRoom = (ws: WebSocket, playerName: string) => {
-	const roomId = uuidv4();
+	const roomId = generateUniqueRoomCode();
 	const playerId = uuidv4();
 	const sessionToken = uuidv4(); // Generate unique session token for reconnection
 	const player: Player = new Player(playerId, playerName, ws, sessionToken);
@@ -168,7 +189,9 @@ const createRoom = (ws: WebSocket, playerName: string) => {
 	Logger.info("ROOM_JOINED", `Player: ${playerId} (${playerName}) has joined room: ${roomId} `);
 };
 
-const joinRoom = (ws: WebSocket, roomId: string, playerName: string) => {
+const joinRoom = (ws: WebSocket, roomIdInput: string, playerName: string) => {
+	// Room codes are generated uppercase; normalize so a lowercase-typed code still resolves.
+	const roomId = roomIdInput.trim().toUpperCase();
 	const room: GameRoom = rooms.get(roomId)!;
 	if (!room) return ws.send(JSON.stringify({ type: 'ERROR', message: 'Room not found' }));
 	const playerId = uuidv4();

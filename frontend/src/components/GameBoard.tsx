@@ -4,6 +4,8 @@ import { CardFace } from '../enums/cards/CardFace';
 import PlayerAvatar from './PlayerAvatar';
 import FannedCards from './FannedCards';
 import CardComponent from './CardComponent';
+import BlochSphere from './BlochSphere';
+import { ActionCards } from '../enums/cards/ActionCards';
 
 interface GameBoardProps {
   sortedPlayerIds: string[];
@@ -84,7 +86,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
       })}
 
       {/* Central Game Board */}
-      <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex items-center gap-4 sm:gap-8 scale-[0.6] sm:scale-100 transition-transform duration-300">
+      <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex items-center gap-4 sm:gap-8 scale-[0.6] sm:scale-100 transition-transform duration-300">
         {/* Turn Direction Indicator */}
         <div className="absolute -top-18 left-1/2 -translate-x-1/2 z-40">
           <div
@@ -102,7 +104,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">DRAW PILE</div>
           {drawTop && (
             <div
-              className={`relative cursor-pointer transition-transform hover:scale-110 ${playerId === currentPlayerId && !isTeleportationMode ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+              className={`relative transition-transform hover:scale-110 ${playerId === currentPlayerId && !isTeleportationMode ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
                 }`}
               style={{
                 transform: 'translateZ(30px) rotate(-5deg)',
@@ -115,15 +117,35 @@ const GameBoard: React.FC<GameBoardProps> = ({
               }}
             >
               <div className="absolute -bottom-1 -right-1 w-16 h-[88px] sm:w-[72px] sm:h-[104px] rounded-lg bg-blue-900/60 blur-sm"></div>
-              <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
-                <CardComponent
-                  card={isLightSideActive ? new Card(undefined, undefined, drawTop) : new Card(undefined, drawTop, undefined)}
-                  isLight={!isLightSideActive}
-                  className="w-16 h-[88px] sm:w-[72px] sm:h-[104px]"
+              <div className="relative w-16 h-[88px] sm:w-[72px] sm:h-[104px]">
+                {/* Stack depth: a couple of card-back layers peeking out from behind the top card */}
+                <div
+                  className="absolute inset-0 rounded-2xl translate-x-2 translate-y-1.5 rotate-6 border border-white/10"
+                  style={{ background: 'linear-gradient(145deg, #4c1d95, #1e1b4b)' }}
                 />
+                <div
+                  className="absolute inset-0 rounded-2xl translate-x-1 translate-y-0.5 rotate-3 border border-white/10"
+                  style={{ background: 'linear-gradient(145deg, #5b21b6, #312e81)' }}
+                />
+                <div className={`relative ${isFlipping ? 'card-flip-animation' : ''}`}>
+                  <CardComponent
+                    card={isLightSideActive ? new Card(undefined, undefined, drawTop) : new Card(undefined, drawTop, undefined)}
+                    isLight={!isLightSideActive}
+                    className="w-16 h-[88px] sm:w-[72px] sm:h-[104px]"
+                  />
+                </div>
               </div>
             </div>
           )}
+        </div>
+
+        {/* Bloch Sphere - shows the active qubit state (|0> light / |1> dark / superposed on the equator) */}
+        <div className="flex flex-col items-center relative z-50">
+          <div className="text-white text-xs font-bold mb-2 drop-shadow-lg bg-black/50 px-2 py-0.5 rounded">QUBIT</div>
+          <BlochSphere
+            isLightSideActive={isLightSideActive}
+            isSuperpositionActive={discardTop?.value === ActionCards.WildCard.Superposition}
+          />
         </div>
 
         {/* Discard Pile and Entanglement Pile - Center */}
@@ -197,8 +219,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
         const positionStyles = {
           'top-left': { top: '180px', left: '20px', transform: 'translateX(0)' },
           'top-right': { top: '180px', right: '20px', transform: 'translateX(0)' },
-          'mid-right': { top: 'calc(50% - 20px)', right: '150px', transform: 'translateY(0)' },
-          'mid-left': { top: 'calc(50% - 20px)', left: '150px', transform: 'translateY(0)' },
+          'mid-right': { top: 'calc(50% - 20px)', right: '200px', transform: 'translateY(0)' },
+          'mid-left': { top: 'calc(50% - 20px)', left: '200px', transform: 'translateY(0)' },
           'top-center': { top: '180px', left: '50%', transform: 'translateX(-50%)' },
           'top-left-center': { top: '275px', left: 'calc(25% - 40px)', transform: 'translateX(-50%)' },
           'top-right-center': { top: '275px', right: 'calc(25% - 40px)', transform: 'translateX(50%)' },

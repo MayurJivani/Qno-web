@@ -3,3 +3,9 @@ node_modules/
 dist/
 frontend/dist/
 backend/dist/
+
+# Claude Code and local tooling
+.claude/
+.codegraph/
+.mcp.json
+.impeccable

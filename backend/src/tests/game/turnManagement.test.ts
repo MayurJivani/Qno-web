@@ -31,13 +31,13 @@ describe('Turn Management Tests', () => {
 
         await Promise.all([player1.connect(), player2.connect(), player3.connect()]);
 
-        player1.send({ type: 'CREATE_ROOM' });
+        player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
         const { roomId, playerId: player1Id } = await player1.waitFor('ROOM_CREATED');
 
-        player2.send({ type: 'JOIN_ROOM', roomId });
+        player2.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player2' });
         const { playerId: player2Id } = await player2.waitFor('JOINED_ROOM');
 
-        player3.send({ type: 'JOIN_ROOM', roomId });
+        player3.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player3' });
         const { playerId: player3Id } = await player3.waitFor('JOINED_ROOM');
 
         // All ready
@@ -124,16 +124,16 @@ describe('Turn Management Tests', () => {
 
         await Promise.all([player1.connect(), player2.connect(), player3.connect(), player4.connect()]);
 
-        player1.send({ type: 'CREATE_ROOM' });
+        player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
         const { roomId, playerId: player1Id } = await player1.waitFor('ROOM_CREATED');
 
-        player2.send({ type: 'JOIN_ROOM', roomId });
+        player2.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player2' });
         const { playerId: player2Id } = await player2.waitFor('JOINED_ROOM');
 
-        player3.send({ type: 'JOIN_ROOM', roomId });
+        player3.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player3' });
         const { playerId: player3Id } = await player3.waitFor('JOINED_ROOM');
 
-        player4.send({ type: 'JOIN_ROOM', roomId });
+        player4.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player4' });
         const { playerId: player4Id } = await player4.waitFor('JOINED_ROOM');
 
         // All ready
@@ -197,10 +197,10 @@ describe('Turn Management Tests', () => {
 
         await Promise.all([player1.connect(), player2.connect()]);
 
-        player1.send({ type: 'CREATE_ROOM' });
+        player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
         const { roomId, playerId: player1Id } = await player1.waitFor('ROOM_CREATED');
 
-        player2.send({ type: 'JOIN_ROOM', roomId });
+        player2.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player2' });
         const { playerId: player2Id } = await player2.waitFor('JOINED_ROOM');
 
         // Both ready

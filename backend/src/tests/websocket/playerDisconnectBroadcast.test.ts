@@ -26,12 +26,12 @@ test("player disconnects and is removed from room", async () => {
     await Promise.all([player1.connect(), player2.connect()]);
 
     // Player 1 creates a room
-    player1.send({ type: 'CREATE_ROOM' });
+    player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
     const createdMsg = await player1.waitFor('ROOM_CREATED');
     const roomId = createdMsg.roomId;
 
     // Player 2 joins the room
-    player2.send({ type: 'JOIN_ROOM', roomId });
+    player2.send({ type: 'JOIN_ROOM', roomId, playerName: 'Player2' });
     const joinMsg = await player2.waitFor('JOINED_ROOM');
     const player2Id = joinMsg.playerId;
 

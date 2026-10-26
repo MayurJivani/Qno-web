@@ -22,7 +22,7 @@ test("player status is marked as ready", async () => {
     const ws = new WebSockTestClient(`ws://localhost:${port}`);
     await ws.connect();
 
-    ws.send({ type: 'CREATE_ROOM' });
+    ws.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
     const createdRoomMsg = await ws.waitFor('ROOM_CREATED');
 
     const { roomId, playerId } = createdRoomMsg;

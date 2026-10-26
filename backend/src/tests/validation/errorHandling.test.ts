@@ -159,7 +159,7 @@ describe('Error Handling Tests', () => {
         const client = new WebSockTestClient(url);
         await client.connect();
 
-        client.send({ type: 'JOIN_ROOM', roomId: 'non-existent-room-id' });
+        client.send({ type: 'JOIN_ROOM', roomId: 'non-existent-room-id', playerName: 'Player1' });
 
         const errorMsg = await client.waitFor('ERROR');
         expect(errorMsg.message).toContain('Room not found');
@@ -172,7 +172,7 @@ describe('Error Handling Tests', () => {
         const player1 = new WebSockTestClient(url);
         await player1.connect();
 
-        player1.send({ type: 'CREATE_ROOM' });
+        player1.send({ type: 'CREATE_ROOM', playerName: 'Player1' });
         const { roomId } = await player1.waitFor('ROOM_CREATED');
 
         // Try to use invalid playerId

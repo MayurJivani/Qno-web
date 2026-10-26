@@ -1,0 +1,7 @@
+http://qno.futile.studio {
+	import common
+	# Every game rides one WebSocket; buffered, a played card shows up late on the other screens.
+	reverse_proxy 127.0.0.1:3002 {
+		flush_interval -1
+	}
+}

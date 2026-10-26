@@ -1,0 +1,22 @@
+[Unit]
+Description=qno (quantum Uno, WebSocket game server)
+After=network-online.target
+
+[Service]
+User=icarusfalls
+WorkingDirectory=/opt/apps/Qno-web/backend
+# Optional overrides only; nothing here is secret.
+EnvironmentFile=-/etc/apps/qno.env
+Environment=NODE_ENV=production PORT=3002
+ExecStart=/usr/bin/node dist/app.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+MemoryMax=384M
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

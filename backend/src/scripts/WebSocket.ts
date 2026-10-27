@@ -2,7 +2,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';  // Import the http module
 import { randomBytes } from 'crypto';
 import { Card } from '../models/Card';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { GameRoom } from '../models/GameRoom';
 import { Player } from '../models/Player';
 import { Status as GameRoomStatus } from '../enums/gameRoom/Status';
@@ -33,13 +33,31 @@ function generateUniqueRoomCode(): string {
 	return code;
 }
 
+/** Messages sent before a socket has a seat; everything else is bound to the socket's own seat. */
+const SEATLESS = new Set(['CREATE_ROOM', 'JOIN_ROOM', 'REJOIN_ROOM', 'GET_GAME_STATE']);
+const MESSAGE_WINDOW_MS = 10_000;
+const MESSAGE_LIMIT = 60;
+
 export function setupWebSocketServer(server: http.Server) {
-	const wss = new WebSocketServer({ server });
+	// The default maxPayload is 100 MiB; the largest real message is one card.
+	const wss = new WebSocketServer({ server, maxPayload: 16 * 1024 });
 
 	wss.on('connection', (ws: WebSocket) => {
 		Logger.info("CONNECTED", 'A user has connected.');
 		ws.send(JSON.stringify({ type: 'CONNECTED', message: 'WebSocket connection setup successfully' }));
+		// Fixed window per socket: well above real play, a cap on room-code walking and spam.
+		let windowStart = Date.now();
+		let windowCount = 0;
 		ws.on('message', (message: Buffer) => {
+			const now = Date.now();
+			if (now - windowStart > MESSAGE_WINDOW_MS) {
+				windowStart = now;
+				windowCount = 0;
+			}
+			if (++windowCount > MESSAGE_LIMIT) {
+				ws.close(1008, 'Too many messages');
+				return;
+			}
 			try {
 				const messageStr = message.toString('utf-8');
 				handleMessage(ws, messageStr);
@@ -64,7 +82,7 @@ const handleMessage = (ws: WebSocket, message: string) => {
 
 		const actions: { [key: string]: () => void } = {
 			'CREATE_ROOM': () => {
-				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim() : '';
+				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim().slice(0, 24) : '';
 				if (!playerName) {
 					ws.send(JSON.stringify({ type: 'ERROR', message: 'Player name is required' }));
 					return;
@@ -76,7 +94,7 @@ const handleMessage = (ws: WebSocket, message: string) => {
 					ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid roomId' }));
 					return;
 				}
-				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim() : '';
+				const playerName = typeof parsed.playerName === 'string' ? parsed.playerName.trim().slice(0, 24) : '';
 				if (!playerName) {
 					ws.send(JSON.stringify({ type: 'ERROR', message: 'Player name is required' }));
 					return;
@@ -160,7 +178,21 @@ const handleMessage = (ws: WebSocket, message: string) => {
 		'GET_GAME_STATE': () => sendGameState(ws),
 	};
 
-		const action = actions[parsed.type];
+		// Every in-game action acts as the seat this socket joined, never as whatever
+		// roomId/playerId the message names: player ids are broadcast to the whole
+		// table, so trusting them let anyone play, draw or leave as anyone else.
+		// Own keys only: a type of "constructor" or "toString" is not an action.
+		const action = Object.prototype.hasOwnProperty.call(actions, parsed.type) ? actions[parsed.type] : undefined;
+		if (action && !SEATLESS.has(parsed.type)) {
+			const seat = playerMap.get(ws);
+			if (!seat) {
+				ws.send(JSON.stringify({ type: 'ERROR', message: 'Join a room first' }));
+				return;
+			}
+			parsed.roomId = seat.roomId;
+			parsed.playerId = seat.playerId;
+		}
+
 		if (action) {
 			action();
 		} else {

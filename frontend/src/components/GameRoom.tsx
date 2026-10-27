@@ -130,7 +130,7 @@ const GameRoom: React.FC = () => {
   const processNotificationQueueRef = useRef<() => void>(() => { });
 
   // Function to add notification to queue - using ref to avoid closure issues
-  const queueNotificationRef = useRef<(message: string, type: string, duration: number) => void>();
+  const queueNotificationRef = useRef<(message: string, type: string, duration: number) => void>(undefined);
 
   // Initialize the process function
   processNotificationQueueRef.current = () => {

@@ -83,7 +83,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'PLAYER_READY', playerId: 'test' });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid roomId or playerId');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -96,7 +96,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'PLAYER_READY', roomId: 'test' });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid roomId or playerId');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -109,7 +109,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'START_GAME', playerId: 'test' });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid roomId or playerId');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -123,7 +123,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'PLAY_CARD', playerId: 'test', card });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid play card request');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -136,7 +136,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'PLAY_CARD', roomId: 'test', playerId: 'test' });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid play card request');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -149,7 +149,7 @@ describe('Error Handling Tests', () => {
         client.send({ type: 'DRAW_CARD', playerId: 'test' });
 
         const errorMsg = await client.waitFor('ERROR');
-        expect(errorMsg.message).toContain('Invalid roomId or playerId');
+        expect(errorMsg.message).toContain('Join a room first');
 
         client.close();
     });
@@ -182,6 +182,26 @@ describe('Error Handling Tests', () => {
         // Should not receive PLAYED_CARD (error may not be sent if player validation fails silently)
         // This test verifies the structure exists
         player1.close();
+    });
+
+    test('A player id seen on the table cannot be used to act as that player', async () => {
+        const url = `ws://localhost:${port}`;
+        const host = new WebSockTestClient(url);
+        const guest = new WebSockTestClient(url);
+        await host.connect();
+        await guest.connect();
+
+        host.send({ type: 'CREATE_ROOM', playerName: 'Host' });
+        const { roomId, playerId: hostId } = await host.waitFor('ROOM_CREATED');
+        guest.send({ type: 'JOIN_ROOM', roomId, playerName: 'Guest' });
+        await guest.waitFor('SESSION_TOKEN');
+
+        guest.send({ type: 'PLAYER_READY', roomId, playerId: hostId });
+        const ready = await host.waitFor('PLAYER_READY');
+        expect(ready.playerId).not.toBe(hostId);
+
+        host.close();
+        guest.close();
     });
 });
 

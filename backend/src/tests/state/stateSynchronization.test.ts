@@ -81,14 +81,14 @@ describe('State Synchronization Tests', () => {
             player1.send({ type: 'PLAY_CARD', roomId, playerId: player1Id, card: playCard });
 
             // Wait for played card confirmation and opponent hand update
-            await Promise.all([
+            // One OPPONENT_HAND follows a play; waitFor consumes it, so it is read from here.
+            const [, , oppHandP2After] = await Promise.all([
                 player1.waitFor('PLAYED_CARD'),
                 player2.waitFor('OPPONENT_PLAYED_CARD'),
                 player2.waitFor('OPPONENT_HAND')
             ]);
 
             // Verify opponent hand was updated
-            const oppHandP2After = await player2.waitFor('OPPONENT_HAND');
             expect(oppHandP2After.opponentHands[player1Id]).toBeDefined();
             // Verify opponent hand size decreased by 1
             expect(oppHandP2After.opponentHands[player1Id].length).toBe(initialHandSize - 1);
@@ -134,13 +134,10 @@ describe('State Synchronization Tests', () => {
         // Both should see same initial discard pile
         expect(discardPileTopP1Initial.card).toEqual(discardPileTopP2Initial.card);
 
-        // Get player1's hand
-        const [yourHandP1, discardPileTopP1] = await Promise.all([
-            player1.waitFor('YOUR_HAND'),
-            player1.waitFor('DISCARD_PILE_TOP')
-        ]);
+        // Get player1's hand. The start sends one DISCARD_PILE_TOP, already read above.
+        const yourHandP1 = await player1.waitFor('YOUR_HAND');
 
-        const cardOnTopOfDiscardPile = discardPileTopP1.card;
+        const cardOnTopOfDiscardPile = discardPileTopP1Initial.card;
         let playCard: Card | undefined;
         for (const card of yourHandP1.hand.cards) {
             const activeCardFace = CardUtils.getActiveFace(card, true);

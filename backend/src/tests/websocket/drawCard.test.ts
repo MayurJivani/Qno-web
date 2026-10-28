@@ -64,9 +64,12 @@ test('Each player should receive correct hand and opponent hand', async () => {
 
     // Draw card from draw pile
     player1.send({ type: 'DRAW_CARD', roomId: roomId, playerId: player1Id });
-    const [serverAcknowledgement, player1drew, drawPileTopP1, drawPileTopP2, nextPlayerP1, nextPlayerP2] = await Promise.all([
+    const [serverAcknowledgement, player1drew] = await Promise.all([
         player1.waitFor('CARD_DRAWN'),
         player2.waitFor('OPPONENT_DREW_CARD'),
+    ])
+    player1.keepDrawnCardIfAsked(roomId, player1Id);
+    const [drawPileTopP1, drawPileTopP2, nextPlayerP1, nextPlayerP2] = await Promise.all([
         player1.waitFor('DISCARD_PILE_TOP'),
         player2.waitFor('DISCARD_PILE_TOP'),
         player1.waitFor('TURN_CHANGED'),

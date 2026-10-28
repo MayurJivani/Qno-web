@@ -6,6 +6,7 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testTimeout: 10000, // 10 seconds
+  setupFiles: ['<rootDir>/src/tests/setup.ts'],
   globals: {
     'ts-jest': {
       tsconfig: {

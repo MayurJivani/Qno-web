@@ -428,6 +428,8 @@ export class GameManager {
             
             // Broadcast updated opponent hands
             room.broadcastOpponentHands();
+            // The pile lost its top card whatever the player decides, so everyone sees the new one now.
+            room.broadcastTopOfDrawPile();
             return; // Don't advance turn yet - wait for user decision
         }
 

@@ -120,6 +120,7 @@ describe('Turn Validation Tests', () => {
         // Player1 draws card (their turn)
         player1.send({ type: 'DRAW_CARD', roomId, playerId: player1Id });
         await player1.waitFor('CARD_DRAWN');
+        player1.keepDrawnCardIfAsked(roomId, player1Id);
         await player1.waitFor('TURN_CHANGED');
 
         // Now it should be player2's turn

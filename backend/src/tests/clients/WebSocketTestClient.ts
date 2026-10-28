@@ -44,6 +44,17 @@ export class WebSockTestClient {
         });
     }
 
+    /**
+     * A playable draw waits for PLAY or KEEP before the turn moves on. The prompt is sent before
+     * CARD_DRAWN, so once a test has read the draw it is already queued; tests that only draw keep.
+     */
+    keepDrawnCardIfAsked(roomId: string, playerId: string) {
+        const i = this.messageQueue.findIndex(msg => msg.type === 'PLAYABLE_CARD_DRAWN');
+        if (i === -1) return;
+        this.messageQueue.splice(i, 1);
+        this.send({ type: 'DRAWN_CARD_DECISION', roomId, playerId, decision: 'KEEP' });
+    }
+
     close() {
         this.ws.close();
     }

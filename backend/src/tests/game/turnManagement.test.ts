@@ -223,16 +223,17 @@ describe('Turn Management Tests', () => {
         expect(start1.direction).toBe(1);
 
         // Get hands
-        const [yourHandP2, discardPileTopP1] = await Promise.all([
-            player2.waitFor('YOUR_HAND'),
+        // Player 1 opens (tests/setup.ts), so the card comes from their hand.
+        const [yourHandP1, discardPileTopP1] = await Promise.all([
+            player1.waitFor('YOUR_HAND'),
             player1.waitFor('DISCARD_PILE_TOP')
         ]);
 
-        // Find Pauli Z card in player2's hand
+        // Find Pauli Z card in player1's hand
         const cardOnTopOfDiscardPile = discardPileTopP1.card;
         let pauliZCard: Card | undefined;
 
-        for (const card of yourHandP2.hand.cards) {
+        for (const card of yourHandP1.hand.cards) {
             const activeCardFace = CardUtils.getActiveFace(card, false); // Dark side active for Pauli Z
             if (activeCardFace.value === ActionCards.Dark.Pauli_Z) {
                 if (activeCardFace.colour === cardOnTopOfDiscardPile.colour || 
@@ -243,14 +244,10 @@ describe('Turn Management Tests', () => {
             }
         }
 
-        // Wait for player2's turn
-        await player1.waitFor('TURN_CHANGED');
-        await player2.waitFor('TURN_CHANGED');
-
         if (pauliZCard) {
-            // Player2 plays Pauli Z
-            player2.send({ type: 'PLAY_CARD', roomId, playerId: player2Id, card: pauliZCard });
-            const effect = await player2.waitFor('CARD_EFFECT');
+            // Player1 plays Pauli Z
+            player1.send({ type: 'PLAY_CARD', roomId, playerId: player1Id, card: pauliZCard });
+            const effect = await player1.waitFor('CARD_EFFECT');
 
             // Direction should be reversed (should be -1 or 2, depending on implementation)
             expect(effect.direction).not.toBe(start1.direction);

@@ -5,10 +5,12 @@ export class TurnManager {
     private currentIndex: number = 0;
     private direction: Direction = Direction.Clockwise;
 
+    /** Who opens the game. Random in play; the test setup pins it so turn-order tests can say who goes first. */
+    static pickStart = (players: number): number => Math.floor(Math.random() * players);
+
     constructor(playerIds: string[]) {
         this.playerIds = playerIds;
-        // Randomly select the starting player
-        this.currentIndex = Math.floor(Math.random() * playerIds.length);
+        this.currentIndex = TurnManager.pickStart(playerIds.length);
     }
 
     getCurrentPlayerId(): string {
